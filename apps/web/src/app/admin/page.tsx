@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiUpload, getApiUrl } from "@/lib/api";
 import { getUser } from "@/lib/auth";
@@ -22,13 +22,20 @@ interface HistoryRound {
   prizeBreakdown: { tier: string; count: number; totalValue: number }[];
 }
 
-type Tab = "event" | "prizes" | "templates" | "data";
+interface EmployeeRow {
+  id: string; cccd: string; name: string; dept: string; position: string;
+  dob: string; role: string; hasSpun: boolean; selfieUrl: string | null;
+  cardImageUrl: string | null; lastLoginAt: string | null; createdAt: string;
+}
+
+type Tab = "event" | "prizes" | "templates" | "data" | "employees";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: "event", label: "Điều hành", icon: "🎯" },
   { key: "prizes", label: "Giải thưởng", icon: "🎁" },
   { key: "templates", label: "Thiệp & Lời chúc", icon: "🎨" },
   { key: "data", label: "Dữ liệu", icon: "📊" },
+  { key: "employees", label: "Nhân sự", icon: "👥" },
 ];
 
 export default function AdminPage() {
@@ -60,6 +67,24 @@ export default function AdminPage() {
   const [eventName, setEventName] = useState("WomanDay Spin 8/3");
   const [eventNameSaving, setEventNameSaving] = useState(false);
 
+  // Employee management state
+  const [empList, setEmpList] = useState<EmployeeRow[]>([]);
+  const [empTotal, setEmpTotal] = useState(0);
+  const [empPage, setEmpPage] = useState(1);
+  const [empTotalPages, setEmpTotalPages] = useState(1);
+  const [empDepts, setEmpDepts] = useState<string[]>([]);
+  const [empSearch, setEmpSearch] = useState("");
+  const [empDeptFilter, setEmpDeptFilter] = useState("");
+  const [empLoaded, setEmpLoaded] = useState(false);
+  const [empEditing, setEmpEditing] = useState<EmployeeRow | null>(null);
+  const [empAdding, setEmpAdding] = useState(false);
+  const [empForm, setEmpForm] = useState({ cccd: "", dob: "", name: "", position: "", dept: "", role: "user" });
+  const [empSaving, setEmpSaving] = useState(false);
+  const [empResetAllConfirm, setEmpResetAllConfirm] = useState(0);
+  const [empDetailId, setEmpDetailId] = useState<string | null>(null);
+  const [empDetail, setEmpDetail] = useState<any>(null);
+  const [empDetailLoading, setEmpDetailLoading] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     const u = getUser();
@@ -77,10 +102,11 @@ export default function AdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load prize config when switching to prizes tab
+  // Load tab-specific data when switching tabs
   useEffect(() => {
     if (activeTab === "prizes" && !prizeConfigLoaded) loadPrizeConfig();
     if (activeTab === "data" && !historyLoaded) loadHistory();
+    if (activeTab === "employees" && !empLoaded) loadEmployees();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -281,6 +307,122 @@ export default function AdminPage() {
     e.target.value = "";
   }
 
+  // ── Employee handlers ──────────────────────────────
+  const loadEmployees = useCallback(async (page?: number) => {
+    try {
+      const params = new URLSearchParams();
+      if (empSearch) params.set("q", empSearch);
+      if (empDeptFilter) params.set("dept", empDeptFilter);
+      params.set("page", String(page || empPage));
+      params.set("limit", "50");
+      const res = await apiFetch<{
+        employees: EmployeeRow[]; total: number; page: number;
+        totalPages: number; departments: string[];
+      }>(`/api/v1/admin/employees?${params}`);
+      setEmpList(res.employees);
+      setEmpTotal(res.total);
+      setEmpPage(res.page);
+      setEmpTotalPages(res.totalPages);
+      setEmpDepts(res.departments);
+      setEmpLoaded(true);
+    } catch (e: any) { setMsg("Lỗi tải nhân viên: " + e.message); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empSearch, empDeptFilter, empPage]);
+
+  function startAddEmployee() {
+    setEmpEditing(null);
+    setEmpAdding(true);
+    setEmpForm({ cccd: "", dob: "", name: "", position: "", dept: "", role: "user" });
+  }
+
+  function startEditEmployee(emp: EmployeeRow) {
+    setEmpAdding(false);
+    setEmpEditing(emp);
+    const d = new Date(emp.dob);
+    const dobStr = `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+    setEmpForm({ cccd: emp.cccd, dob: dobStr, name: emp.name, position: emp.position, dept: emp.dept, role: emp.role });
+  }
+
+  function cancelEmpForm() { setEmpAdding(false); setEmpEditing(null); }
+
+  async function saveEmployee() {
+    if (!empForm.cccd || !empForm.dob || !empForm.name) {
+      setMsg("CCCD, ngày sinh và họ tên là bắt buộc"); return;
+    }
+    setEmpSaving(true);
+    try {
+      if (empEditing) {
+        await apiFetch(`/api/v1/admin/employees/${empEditing.id}`, {
+          method: "PUT", body: JSON.stringify(empForm),
+        });
+        setMsg(`Đã cập nhật ${empForm.name}`);
+      } else {
+        await apiFetch("/api/v1/admin/employees", {
+          method: "POST", body: JSON.stringify(empForm),
+        });
+        setMsg(`Đã thêm ${empForm.name}`);
+      }
+      cancelEmpForm();
+      await loadEmployees();
+    } catch (e: any) { setMsg("Lỗi: " + e.message); }
+    finally { setEmpSaving(false); }
+  }
+
+  async function deleteEmployee(emp: EmployeeRow) {
+    if (!confirm(`Xóa nhân viên ${emp.name} (${emp.cccd})? Tất cả dữ liệu liên quan sẽ bị xóa.`)) return;
+    try {
+      await apiFetch(`/api/v1/admin/employees/${emp.id}`, { method: "DELETE" });
+      setMsg(`Đã xóa ${emp.name}`);
+      await loadEmployees();
+    } catch (e: any) { setMsg("Lỗi: " + e.message); }
+  }
+
+  async function resetEmployee(emp: EmployeeRow) {
+    if (!confirm(`Reset ${emp.name}? Sẽ xóa selfie, thiệp, kết quả quay và cho phép quay lại.`)) return;
+    try {
+      await apiFetch(`/api/v1/admin/employees/${emp.id}/reset`, { method: "POST" });
+      setMsg(`Đã reset ${emp.name}`);
+      await loadEmployees();
+    } catch (e: any) { setMsg("Lỗi: " + e.message); }
+  }
+
+  async function resetAllEmployees() {
+    if (empResetAllConfirm < 2) {
+      setEmpResetAllConfirm((c) => c + 1);
+      return;
+    }
+    try {
+      await apiFetch("/api/v1/admin/employees/reset-all", { method: "POST" });
+      setMsg("Đã reset tất cả nhân viên");
+      setEmpResetAllConfirm(0);
+      await loadEmployees();
+    } catch (e: any) { setMsg("Lỗi: " + e.message); }
+  }
+
+  async function toggleEmployeeDetail(empId: string) {
+    if (empDetailId === empId) { setEmpDetailId(null); setEmpDetail(null); return; }
+    setEmpDetailId(empId);
+    setEmpDetailLoading(true);
+    try {
+      const res = await apiFetch<any>(`/api/v1/admin/employees/${empId}/detail`);
+      setEmpDetail(res);
+    } catch (e: any) { setMsg("Lỗi: " + e.message); setEmpDetailId(null); }
+    finally { setEmpDetailLoading(false); }
+  }
+
+  async function grantItem(empId: string, type: string, amount: number) {
+    try {
+      const res = await apiFetch<{ success: boolean; message: string; employee: any }>(`/api/v1/admin/employees/${empId}/grant`, {
+        method: "POST", body: JSON.stringify({ type, amount }),
+      });
+      setMsg(res.message);
+      // Refresh detail panel
+      if (empDetailId === empId && empDetail) {
+        setEmpDetail((prev: any) => ({ ...prev, employee: { ...prev.employee, ...res.employee } }));
+      }
+    } catch (e: any) { setMsg("Lỗi: " + e.message); }
+  }
+
   if (!mounted) return null;
 
   const prizeTotal = prizeConfig.reduce((s, t) => s + t.count, 0);
@@ -386,6 +528,22 @@ export default function AdminPage() {
         {activeTab === "data" && <TabData
           history={history} historyLoaded={historyLoaded}
           onExportCSV={exportCSV} onImportCsv={handleImportCsv}
+        />}
+        {activeTab === "employees" && <TabEmployees
+          employees={empList} total={empTotal} page={empPage} totalPages={empTotalPages}
+          departments={empDepts} search={empSearch} deptFilter={empDeptFilter}
+          loaded={empLoaded} editing={empEditing} adding={empAdding}
+          form={empForm} saving={empSaving}
+          resetAllConfirm={empResetAllConfirm}
+          detailId={empDetailId} detail={empDetail} detailLoading={empDetailLoading}
+          onSearchChange={setEmpSearch} onDeptFilterChange={setEmpDeptFilter}
+          onSearch={() => loadEmployees(1)} onPageChange={(p) => loadEmployees(p)}
+          onStartAdd={startAddEmployee} onStartEdit={startEditEmployee}
+          onCancelForm={cancelEmpForm} onFormChange={(f, v) => setEmpForm((prev) => ({ ...prev, [f]: v }))}
+          onSave={saveEmployee} onDelete={deleteEmployee} onReset={resetEmployee}
+          onResetAll={resetAllEmployees} onResetAllBlur={() => setEmpResetAllConfirm(0)}
+          onToggleDetail={toggleEmployeeDetail} onGrant={grantItem}
+          getApiUrl={getApiUrl}
         />}
       </div>
     </div>
@@ -880,6 +1038,396 @@ function TabData({ history, historyLoaded, onExportCSV, onImportCsv }: {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   TAB: Nhân sự
+   ════════════════════════════════════════════════════════════ */
+
+function TabEmployees({ employees, total, page, totalPages, departments, search, deptFilter, loaded, editing, adding, form, saving, resetAllConfirm, detailId, detail, detailLoading, onSearchChange, onDeptFilterChange, onSearch, onPageChange, onStartAdd, onStartEdit, onCancelForm, onFormChange, onSave, onDelete, onReset, onResetAll, onResetAllBlur, onToggleDetail, onGrant, getApiUrl }: {
+  employees: EmployeeRow[]; total: number; page: number; totalPages: number;
+  departments: string[]; search: string; deptFilter: string;
+  loaded: boolean; editing: EmployeeRow | null; adding: boolean;
+  form: { cccd: string; dob: string; name: string; position: string; dept: string; role: string };
+  saving: boolean; resetAllConfirm: number;
+  detailId: string | null; detail: any; detailLoading: boolean;
+  onSearchChange: (v: string) => void; onDeptFilterChange: (v: string) => void;
+  onSearch: () => void; onPageChange: (p: number) => void;
+  onStartAdd: () => void; onStartEdit: (emp: EmployeeRow) => void;
+  onCancelForm: () => void; onFormChange: (field: string, value: string) => void;
+  onSave: () => void; onDelete: (emp: EmployeeRow) => void; onReset: (emp: EmployeeRow) => void;
+  onResetAll: () => void; onResetAllBlur: () => void;
+  onToggleDetail: (id: string) => void; onGrant: (id: string, type: string, amount: number) => void;
+  getApiUrl: (p: string) => string;
+}) {
+  function formatDob(iso: string) {
+    const d = new Date(iso);
+    return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+  }
+
+  const TIER_COLORS: Record<string, string> = {
+    FIRST: "#B8860B", SECOND: "#6B6B78", THIRD: "#A0603C", CONS: "#B03060",
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Search + Actions */}
+      <div className="glass p-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex-1 flex gap-2 w-full sm:w-auto">
+            <input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onSearch()}
+              placeholder="Tìm tên hoặc CCCD..."
+              className="flex-1 bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+            />
+            <select
+              value={deptFilter}
+              onChange={(e) => { onDeptFilterChange(e.target.value); }}
+              className="bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+            >
+              <option value="">Tất cả phòng ban</option>
+              {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <button
+              onClick={onSearch}
+              className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-hot text-white hover:bg-brand-mauve transition-colors whitespace-nowrap"
+            >
+              Tìm
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onStartAdd}
+              className="px-4 py-2 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap"
+            >
+              + Thêm NV
+            </button>
+            <button
+              onClick={onResetAll}
+              onBlur={onResetAllBlur}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors whitespace-nowrap ${resetAllConfirm > 0 ? "animate-pulse" : ""}`}
+            >
+              {resetAllConfirm === 0 ? "Reset tất cả" : resetAllConfirm === 1 ? "Chắc chắn?" : "XÁC NHẬN!"}
+            </button>
+          </div>
+        </div>
+        <p className="text-brand-deep/35 text-xs mt-2">
+          Tổng: <span className="font-semibold text-brand-deep/60">{total}</span> nhân viên
+          {totalPages > 1 && <> | Trang {page}/{totalPages}</>}
+        </p>
+      </div>
+
+      {/* Add/Edit Form */}
+      {(adding || editing) && (
+        <div className="glass p-4">
+          <p className="text-brand-deep/50 text-[10px] font-semibold uppercase tracking-widest mb-3">
+            {editing ? `Sửa: ${editing.name}` : "Thêm Nhân Viên Mới"}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">CCCD *</label>
+              <input
+                value={form.cccd}
+                onChange={(e) => onFormChange("cccd", e.target.value)}
+                placeholder="012345678901"
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              />
+            </div>
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">Ngày sinh * (DD/MM/YYYY)</label>
+              <input
+                value={form.dob}
+                onChange={(e) => onFormChange("dob", e.target.value)}
+                placeholder="08/03/1995"
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              />
+            </div>
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">Họ tên *</label>
+              <input
+                value={form.name}
+                onChange={(e) => onFormChange("name", e.target.value)}
+                placeholder="Nguyễn Thị Lan"
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              />
+            </div>
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">Chức vụ</label>
+              <input
+                value={form.position}
+                onChange={(e) => onFormChange("position", e.target.value)}
+                placeholder="Nhân viên"
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              />
+            </div>
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">Phòng ban</label>
+              <input
+                value={form.dept}
+                onChange={(e) => onFormChange("dept", e.target.value)}
+                placeholder="IT"
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              />
+            </div>
+            <div>
+              <label className="text-brand-deep/50 text-xs font-medium mb-1 block">Role</label>
+              <select
+                value={form.role}
+                onChange={(e) => onFormChange("role", e.target.value)}
+                className="w-full bg-white/60 border border-brand-hot/12 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-hot/40"
+              >
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 transition-colors"
+            >
+              {saving ? "Đang lưu..." : editing ? "Cập nhật" : "Thêm"}
+            </button>
+            <button
+              onClick={onCancelForm}
+              className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/60 text-brand-deep/60 hover:bg-white/80 border border-brand-hot/12 transition-colors"
+            >
+              Hủy
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Employees Table */}
+      <div className="glass p-4">
+        <p className="text-brand-deep/50 text-[10px] font-semibold uppercase tracking-widest mb-3">
+          Danh Sách Nhân Viên
+        </p>
+        {!loaded ? (
+          <div className="text-center py-8 text-brand-deep/30 text-sm">Đang tải...</div>
+        ) : employees.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-3xl mb-2">👥</p>
+            <p className="text-brand-deep/40 text-sm">Không tìm thấy nhân viên</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-brand-deep/40 text-[10px] uppercase tracking-wider">
+                    <th className="text-left py-2 px-2">CCCD</th>
+                    <th className="text-left py-2 px-2">Họ tên</th>
+                    <th className="text-left py-2 px-2">Phòng ban</th>
+                    <th className="text-left py-2 px-2">Chức vụ</th>
+                    <th className="text-center py-2 px-2">Đã quay</th>
+                    <th className="text-center py-2 px-2">Role</th>
+                    <th className="text-right py-2 px-2">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((emp) => (
+                    <React.Fragment key={emp.id}>
+                      <tr className={`border-t border-brand-hot/8 ${detailId === emp.id ? "bg-brand-hot/[0.04]" : ""}`}>
+                        <td className="py-2.5 px-2 font-mono text-xs text-brand-deep/70">{emp.cccd}</td>
+                        <td className="py-2.5 px-2 font-semibold text-brand-deep">
+                          {emp.name}
+                          <span className="block text-[10px] text-brand-deep/30 font-normal">{formatDob(emp.dob)}</span>
+                        </td>
+                        <td className="py-2.5 px-2 text-brand-deep/60 text-xs">{emp.dept || "—"}</td>
+                        <td className="py-2.5 px-2 text-brand-deep/60 text-xs">{emp.position || "—"}</td>
+                        <td className="py-2.5 px-2 text-center">
+                          {emp.hasSpun
+                            ? <span className="text-green-600 text-xs font-semibold">✓</span>
+                            : <span className="text-brand-deep/25 text-xs">—</span>
+                          }
+                        </td>
+                        <td className="py-2.5 px-2 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            emp.role === "admin" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"
+                          }`}>
+                            {emp.role}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => onToggleDetail(emp.id)} className={`transition-colors ${detailId === emp.id ? "text-brand-hot" : "text-brand-deep/40 hover:text-brand-deep"}`} title="Chi tiết">
+                              📋
+                            </button>
+                            <button onClick={() => onStartEdit(emp)} className="text-brand-deep/40 hover:text-brand-deep transition-colors" title="Sửa">
+                              ✏️
+                            </button>
+                            <button onClick={() => onReset(emp)} className="text-blue-400 hover:text-blue-600 transition-colors" title="Reset">
+                              🔄
+                            </button>
+                            {emp.role !== "admin" && (
+                              <button onClick={() => onDelete(emp)} className="text-red-300 hover:text-red-500 transition-colors" title="Xóa">
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Expanded Detail Row */}
+                      {detailId === emp.id && (
+                        <tr>
+                          <td colSpan={7} className="p-0">
+                            <div className="bg-brand-cream/50 border-l-4 border-brand-hot/30 px-4 py-3">
+                              {detailLoading ? (
+                                <div className="text-center py-4 text-brand-deep/30 text-sm">Đang tải chi tiết...</div>
+                              ) : detail ? (
+                                <div className="flex flex-col gap-3">
+                                  {/* Row 1: Images + Info + Items */}
+                                  <div className="flex flex-col sm:flex-row gap-4">
+                                    {/* Thumbnails */}
+                                    <div className="flex gap-2 shrink-0">
+                                      {[
+                                        { url: detail.employee.selfieUrl, label: "Selfie" },
+                                        { url: detail.employee.cardImageUrl, label: "Thiệp" },
+                                        { url: detail.employee.resultImageUrl, label: "Kết quả" },
+                                      ].map((img) => (
+                                        <div key={img.label} className="flex flex-col items-center gap-1">
+                                          {img.url ? (
+                                            <img
+                                              src={getApiUrl(img.url)}
+                                              alt={img.label}
+                                              className="w-20 h-24 object-cover rounded-lg border border-brand-hot/20"
+                                            />
+                                          ) : (
+                                            <div className="w-20 h-24 rounded-lg border border-dashed border-brand-deep/15 flex items-center justify-center bg-white/40">
+                                              <span className="text-brand-deep/20 text-[10px]">N/A</span>
+                                            </div>
+                                          )}
+                                          <span className="text-[10px] text-brand-deep/40">{img.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+
+                                    {/* Info */}
+                                    <div className="flex-1 text-xs space-y-1">
+                                      <p className="text-brand-deep/50"><span className="text-brand-deep/30">CCCD:</span> {detail.employee.cccd}</p>
+                                      <p className="text-brand-deep/50"><span className="text-brand-deep/30">DOB:</span> {formatDob(detail.employee.dob)}</p>
+                                      <p className="text-brand-deep/50"><span className="text-brand-deep/30">Phòng:</span> {detail.employee.dept || "—"}</p>
+                                      <p className="text-brand-deep/50"><span className="text-brand-deep/30">Chức vụ:</span> {detail.employee.position || "—"}</p>
+                                      {detail.employee.lastLoginAt && (
+                                        <p className="text-brand-deep/35">
+                                          Login: {new Date(detail.employee.lastLoginAt).toLocaleString("vi-VN")}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Items (Megaphone + Flowers) */}
+                                    <div className="shrink-0 space-y-2">
+                                      <p className="text-brand-deep/40 text-[10px] font-semibold uppercase tracking-widest">Vật phẩm</p>
+                                      {[
+                                        { icon: "🔊", label: "Loa nhỏ", type: "megaphoneSmall", val: detail.employee.megaphoneSmall },
+                                        { icon: "📢", label: "Loa lớn", type: "megaphoneBig", val: detail.employee.megaphoneBig },
+                                        { icon: "🌸", label: "Hoa", type: "flowerBalance", val: detail.employee.flowerBalance },
+                                      ].map((item) => (
+                                        <div key={item.type} className="flex items-center gap-2 text-xs">
+                                          <span>{item.icon}</span>
+                                          <span className="text-brand-deep/60 w-14">{item.label}</span>
+                                          <span className="font-semibold text-brand-deep w-6 text-right">{item.val}</span>
+                                          <button
+                                            onClick={() => onGrant(emp.id, item.type, 1)}
+                                            className="bg-brand-hot/15 text-brand-hot text-[10px] px-2 py-0.5 rounded hover:bg-brand-hot/25 transition-colors font-semibold"
+                                          >
+                                            +1
+                                          </button>
+                                          <button
+                                            onClick={() => onGrant(emp.id, item.type, 5)}
+                                            className="bg-brand-hot/10 text-brand-hot/70 text-[10px] px-2 py-0.5 rounded hover:bg-brand-hot/20 transition-colors font-semibold"
+                                          >
+                                            +5
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Row 2: Spin Result */}
+                                  <div className="border-t border-brand-hot/10 pt-2">
+                                    <span className="text-brand-deep/40 text-[10px] font-semibold uppercase tracking-widest">Kết quả quay</span>
+                                    {detail.spinLog ? (
+                                      <p className="text-sm mt-1">
+                                        <span className="font-bold" style={{ color: TIER_COLORS[detail.spinLog.tier] || "#B03060" }}>
+                                          {detail.spinLog.label}
+                                        </span>
+                                        <span className="text-brand-deep/50 ml-2">
+                                          {detail.spinLog.value > 0 ? `${(detail.spinLog.value / 1000).toFixed(0)}K VND` : ""}
+                                        </span>
+                                        <span className="text-brand-deep/30 text-xs ml-2">
+                                          {new Date(detail.spinLog.spunAt).toLocaleString("vi-VN")}
+                                        </span>
+                                      </p>
+                                    ) : (
+                                      <p className="text-brand-deep/30 text-xs mt-1">Chưa quay</p>
+                                    )}
+                                  </div>
+
+                                  {/* Row 3: Quiz */}
+                                  <div className="border-t border-brand-hot/10 pt-2">
+                                    <span className="text-brand-deep/40 text-[10px] font-semibold uppercase tracking-widest">
+                                      Quiz: {detail.quizCorrect}/{detail.quizTotal} đúng
+                                    </span>
+                                    <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                                      {Array.from({ length: detail.quizTotal }, (_, i) => {
+                                        const ans = detail.quizAnswers.find((a: any) => a.questionId === i + 1);
+                                        return (
+                                          <span
+                                            key={i}
+                                            className="w-6 h-6 rounded flex items-center justify-center text-xs"
+                                            style={{
+                                              background: !ans ? "rgba(0,0,0,0.04)" : ans.isCorrect ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                                              color: !ans ? "rgba(0,0,0,0.2)" : ans.isCorrect ? "#16a34a" : "#dc2626",
+                                            }}
+                                            title={`Q${i + 1}: ${!ans ? "Chưa trả lời" : ans.isCorrect ? "Đúng" : "Sai"}`}
+                                          >
+                                            {!ans ? "—" : ans.isCorrect ? "✓" : "✗"}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button
+                  onClick={() => onPageChange(page - 1)}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/60 border border-brand-hot/12 text-brand-deep/60 hover:bg-white/80 disabled:opacity-30 transition-colors"
+                >
+                  ← Trước
+                </button>
+                <span className="text-xs text-brand-deep/50">Trang {page} / {totalPages}</span>
+                <button
+                  onClick={() => onPageChange(page + 1)}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/60 border border-brand-hot/12 text-brand-deep/60 hover:bg-white/80 disabled:opacity-30 transition-colors"
+                >
+                  Sau →
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -38,6 +38,23 @@ async function getPrizeConfig(): Promise<PrizeTierConfig[]> {
   try { return JSON.parse(cfg.value); } catch { return DEFAULT_PRIZE_CONFIG; }
 }
 
+/** Parse DD/MM/YYYY, DDMMYYYY, YYYY-MM-DD → Date | null */
+function parseDob(input: string): Date | null {
+  const s = input.trim().replace(/\s/g, "");
+  let d: string, m: string, y: string;
+  if (s.includes("/")) {
+    [d, m, y] = s.split("/");
+  } else if (s.includes("-")) {
+    [y, m, d] = s.split("-");
+  } else if (s.length === 8) {
+    d = s.slice(0, 2); m = s.slice(2, 4); y = s.slice(4, 8);
+  } else {
+    return null;
+  }
+  const date = new Date(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  return isNaN(date.getTime()) ? null : date;
+}
+
 export async function adminRoutes(app: FastifyInstance) {
   // POST /api/v1/admin/rooms
   app.post("/rooms", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
@@ -348,14 +365,248 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ success: true, userId: req.params.userId, mutedUntil: updated.mutedUntil?.toISOString() });
   });
 
-  // GET /api/v1/admin/employees
-  app.get("/employees", { preHandler: [app.authenticate, app.adminOnly] }, async (_req, reply) => {
-    const employees = await prisma.employee.findMany({
-      where: { role: "user" },
-      select: { id: true, cccd: true, name: true, dept: true, position: true, hasSpun: true, createdAt: true },
-      orderBy: { name: "asc" },
+  // ── Employee Management ──────────────────────────────────────
+
+  // GET /api/v1/admin/employees — with search, filter, pagination
+  app.get("/employees", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
+    const { q, dept, page, limit } = req.query as { q?: string; dept?: string; page?: string; limit?: string };
+    const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit || "50", 10) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { cccd: { contains: q } },
+      ];
+    }
+    if (dept) {
+      where.dept = dept;
+    }
+
+    const [employees, total, deptRows] = await Promise.all([
+      prisma.employee.findMany({
+        where,
+        select: {
+          id: true, cccd: true, name: true, dept: true, position: true,
+          dob: true, role: true, hasSpun: true, selfieUrl: true,
+          cardImageUrl: true, lastLoginAt: true, createdAt: true,
+        },
+        orderBy: { name: "asc" },
+        skip,
+        take: limitNum,
+      }),
+      prisma.employee.count({ where }),
+      prisma.employee.findMany({
+        select: { dept: true },
+        distinct: ["dept"],
+        orderBy: { dept: "asc" },
+      }),
+    ]);
+
+    return reply.send({
+      employees,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      departments: deptRows.map((r) => r.dept),
     });
-    return reply.send({ employees, total: employees.length });
+  });
+
+  // POST /api/v1/admin/employees — create employee
+  app.post("/employees", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
+    const { cccd, dob, name, position, dept, role } = req.body as {
+      cccd: string; dob: string; name: string; position?: string; dept?: string; role?: string;
+    };
+    if (!cccd || !dob || !name) {
+      return reply.code(400).send({ success: false, error: "MISSING_FIELDS", message: "CCCD, ngày sinh và họ tên là bắt buộc" });
+    }
+    const dobDate = parseDob(dob);
+    if (!dobDate) {
+      return reply.code(400).send({ success: false, error: "INVALID_DOB", message: "Ngày sinh không hợp lệ (DD/MM/YYYY)" });
+    }
+    const existing = await prisma.employee.findUnique({ where: { cccd } });
+    if (existing) {
+      return reply.code(409).send({ success: false, error: "DUPLICATE_CCCD", message: `CCCD ${cccd} đã tồn tại` });
+    }
+    const emp = await prisma.employee.create({
+      data: { cccd, dob: dobDate, name, position: position || "", dept: dept || "", role: role || "user" },
+    });
+    return reply.code(201).send({ success: true, employee: emp });
+  });
+
+  // POST /api/v1/admin/employees/reset-all — MUST be before :id routes
+  app.post("/employees/reset-all", { preHandler: [app.authenticate, app.adminOnly] }, async (_req, reply) => {
+    const eventRound = await getCurrentEventRound();
+    await prisma.$transaction(async (tx) => {
+      // Delete spin logs first (FK references Prize)
+      await tx.spinLog.deleteMany({ where: { eventRound } });
+      // Unassign prizes for current round
+      await tx.prize.updateMany({
+        where: { eventRound, assigned: true },
+        data: { assigned: false, assignedTo: null, assignedAt: null },
+      });
+      // Delete room participants for non-DONE rooms
+      const activeRooms = await tx.room.findMany({ where: { status: { not: "DONE" } }, select: { id: true } });
+      if (activeRooms.length > 0) {
+        await tx.roomParticipant.deleteMany({ where: { roomId: { in: activeRooms.map((r) => r.id) } } });
+      }
+      // Reset all users (not admin)
+      await tx.employee.updateMany({
+        where: { role: "user" },
+        data: { hasSpun: false, selfieUrl: null, cardTemplateId: null, cardImageUrl: null, resultImageUrl: null },
+      });
+    });
+    return reply.send({ success: true, message: "Đã reset tất cả nhân viên" });
+  });
+
+  // PUT /api/v1/admin/employees/:id — update employee
+  app.put("/employees/:id", { preHandler: [app.authenticate, app.adminOnly] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+    const { id } = req.params;
+    const body = req.body as { name?: string; position?: string; dept?: string; role?: string; cccd?: string; dob?: string };
+    const emp = await prisma.employee.findUnique({ where: { id } });
+    if (!emp) return reply.code(404).send({ success: false, error: "NOT_FOUND", message: "Nhân viên không tồn tại" });
+
+    const data: any = {};
+    if (body.name !== undefined) data.name = body.name;
+    if (body.position !== undefined) data.position = body.position;
+    if (body.dept !== undefined) data.dept = body.dept;
+    if (body.role !== undefined) data.role = body.role;
+    if (body.cccd !== undefined && body.cccd !== emp.cccd) {
+      const conflict = await prisma.employee.findUnique({ where: { cccd: body.cccd } });
+      if (conflict) return reply.code(409).send({ success: false, error: "DUPLICATE_CCCD", message: `CCCD ${body.cccd} đã tồn tại` });
+      data.cccd = body.cccd;
+    }
+    if (body.dob !== undefined) {
+      const dobDate = parseDob(body.dob);
+      if (!dobDate) return reply.code(400).send({ success: false, error: "INVALID_DOB", message: "Ngày sinh không hợp lệ" });
+      data.dob = dobDate;
+    }
+
+    const updated = await prisma.employee.update({ where: { id }, data });
+    return reply.send({ success: true, employee: updated });
+  });
+
+  // DELETE /api/v1/admin/employees/:id — cascade delete
+  app.delete("/employees/:id", { preHandler: [app.authenticate, app.adminOnly] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+    const { id } = req.params;
+    const emp = await prisma.employee.findUnique({ where: { id } });
+    if (!emp) return reply.code(404).send({ success: false, error: "NOT_FOUND", message: "Nhân viên không tồn tại" });
+    if (emp.role === "admin") return reply.code(403).send({ success: false, error: "CANNOT_DELETE_ADMIN", message: "Không thể xóa tài khoản admin" });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.quizAnswer.deleteMany({ where: { userId: id } });
+      await tx.cardLike.deleteMany({ where: { OR: [{ userId: id }, { targetUserId: id }] } });
+      await tx.wish.deleteMany({ where: { OR: [{ fromId: id }, { toId: id }] } });
+      await tx.chatMessage.deleteMany({ where: { userId: id } });
+      await tx.generatedImage.deleteMany({ where: { userId: id } });
+      // SpinLog references Prize (FK prizeId), delete SpinLog first
+      await tx.spinLog.deleteMany({ where: { userId: id } });
+      // Unassign prizes (don't delete, just clear assignedTo)
+      await tx.prize.updateMany({ where: { assignedTo: id }, data: { assigned: false, assignedTo: null, assignedAt: null } });
+      await tx.roomParticipant.deleteMany({ where: { userId: id } });
+      await tx.employee.delete({ where: { id } });
+    });
+
+    return reply.send({ success: true, message: `Đã xóa nhân viên ${emp.name}` });
+  });
+
+  // POST /api/v1/admin/employees/:id/reset — reset one employee
+  app.post("/employees/:id/reset", { preHandler: [app.authenticate, app.adminOnly] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+    const { id } = req.params;
+    const emp = await prisma.employee.findUnique({ where: { id } });
+    if (!emp) return reply.code(404).send({ success: false, error: "NOT_FOUND", message: "Nhân viên không tồn tại" });
+
+    const eventRound = await getCurrentEventRound();
+    await prisma.$transaction(async (tx) => {
+      // Delete spin log first (FK references Prize)
+      await tx.spinLog.deleteMany({ where: { userId: id, eventRound } });
+      // Unassign prize for current round
+      await tx.prize.updateMany({
+        where: { assignedTo: id, eventRound },
+        data: { assigned: false, assignedTo: null, assignedAt: null },
+      });
+      // Remove from non-DONE rooms
+      const activeRooms = await tx.room.findMany({ where: { status: { not: "DONE" } }, select: { id: true } });
+      if (activeRooms.length > 0) {
+        await tx.roomParticipant.deleteMany({ where: { userId: id, roomId: { in: activeRooms.map((r) => r.id) } } });
+      }
+      // Reset employee fields
+      await tx.employee.update({
+        where: { id },
+        data: { hasSpun: false, selfieUrl: null, cardTemplateId: null, cardImageUrl: null, resultImageUrl: null },
+      });
+    });
+
+    return reply.send({ success: true, message: `Đã reset nhân viên ${emp.name}` });
+  });
+
+  // GET /api/v1/admin/employees/:id/detail — full employee info + spin + quiz
+  app.get("/employees/:id/detail", { preHandler: [app.authenticate, app.adminOnly] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+    const { id } = req.params;
+    const emp = await prisma.employee.findUnique({ where: { id } });
+    if (!emp) return reply.code(404).send({ success: false, error: "NOT_FOUND" });
+
+    const eventRound = await getCurrentEventRound();
+    const [spinLog, quizAnswers] = await Promise.all([
+      prisma.spinLog.findUnique({
+        where: { userId_eventRound: { userId: id, eventRound } },
+        include: { prize: { select: { label: true } } },
+      }),
+      prisma.quizAnswer.findMany({
+        where: { userId: id },
+        select: { questionId: true, selectedIndex: true, isCorrect: true, answeredAt: true },
+        orderBy: { questionId: "asc" },
+      }),
+    ]);
+
+    return reply.send({
+      employee: {
+        id: emp.id, cccd: emp.cccd, dob: emp.dob, name: emp.name,
+        position: emp.position, dept: emp.dept, role: emp.role, hasSpun: emp.hasSpun,
+        selfieUrl: emp.selfieUrl, cardImageUrl: emp.cardImageUrl, resultImageUrl: emp.resultImageUrl,
+        megaphoneSmall: emp.megaphoneSmall, megaphoneBig: emp.megaphoneBig, flowerBalance: emp.flowerBalance,
+        lastLoginAt: emp.lastLoginAt, createdAt: emp.createdAt,
+      },
+      spinLog: spinLog ? {
+        tier: spinLog.tier, value: spinLog.value,
+        label: spinLog.prize?.label || spinLog.tier,
+        roomId: spinLog.roomId, spunAt: spinLog.spunAt,
+      } : null,
+      quizAnswers,
+      quizTotal: 10,
+      quizCorrect: quizAnswers.filter((a) => a.isCorrect).length,
+    });
+  });
+
+  // POST /api/v1/admin/employees/:id/grant — grant megaphone/flowers
+  app.post("/employees/:id/grant", { preHandler: [app.authenticate, app.adminOnly] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+    const { id } = req.params;
+    const { type, amount } = req.body as { type: string; amount: number };
+    const validTypes = ["megaphoneSmall", "megaphoneBig", "flowerBalance"];
+    if (!validTypes.includes(type)) {
+      return reply.code(400).send({ success: false, error: "INVALID_TYPE", message: "Type phải là megaphoneSmall, megaphoneBig hoặc flowerBalance" });
+    }
+    if (!amount || amount < 1 || amount > 100) {
+      return reply.code(400).send({ success: false, error: "INVALID_AMOUNT", message: "Số lượng phải từ 1–100" });
+    }
+    const emp = await prisma.employee.findUnique({ where: { id } });
+    if (!emp) return reply.code(404).send({ success: false, error: "NOT_FOUND" });
+
+    const updated = await prisma.employee.update({
+      where: { id },
+      data: { [type]: { increment: amount } },
+      select: { megaphoneSmall: true, megaphoneBig: true, flowerBalance: true },
+    });
+
+    const labels: Record<string, string> = { megaphoneSmall: "loa nhỏ", megaphoneBig: "loa lớn", flowerBalance: "hoa" };
+    return reply.send({
+      success: true,
+      employee: updated,
+      message: `Đã cấp ${amount} ${labels[type]} cho ${emp.name}`,
+    });
   });
 
   // GET /api/v1/admin/templates/card — info for all 3 template slots
