@@ -509,6 +509,7 @@ export async function generateResultImage(params: {
   if (selfieLocalPath && fs.existsSync(selfieLocalPath)) {
     try {
       const selfieBuffer = await sharp(selfieLocalPath)
+        .rotate()  // auto-rotate from EXIF
         .resize(selfieSize, selfieSize, { fit: "cover" })
         .composite([{ input: circleMaskSvg(selfieSize), blend: "dest-in" }])
         .png()
@@ -579,6 +580,7 @@ export async function generateCardImage(params: {
   if (fs.existsSync(selfieLocalPath)) {
     const selfieSize = 420;
     const selfieBuffer = await sharp(selfieLocalPath)
+      .rotate()  // auto-rotate from EXIF
       .resize(selfieSize, selfieSize, { fit: "cover" })
       .composite([{ input: circleMaskSvg(selfieSize), blend: "dest-in" }])
       .png()

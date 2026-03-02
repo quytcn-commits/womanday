@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import path from "path";
 import fs from "fs";
+import sharp from "sharp";
 import { generateCardImage, getGreeting } from "../services/image.service";
 import prisma from "../lib/prisma";
 
@@ -59,12 +60,16 @@ export async function selfieRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: "NO_FILE", message: "Không có ảnh được tải lên" });
     }
 
-    // Save selfie
+    // Save selfie — auto-rotate from EXIF + convert to JPEG
     const selfiesDir = path.join(UPLOAD_DIR, "selfies");
     fs.mkdirSync(selfiesDir, { recursive: true });
     const selfieFilename = `${userId}.jpg`;
     const selfieLocalPath = path.join(selfiesDir, selfieFilename);
-    fs.writeFileSync(selfieLocalPath, fileBuffer);
+    const processedBuffer = await sharp(fileBuffer)
+      .rotate()              // auto-rotate based on EXIF orientation
+      .jpeg({ quality: 90 }) // normalize to JPEG
+      .toBuffer();
+    fs.writeFileSync(selfieLocalPath, processedBuffer);
     const selfieUrl = `/uploads/selfies/${selfieFilename}`;
 
     // Update employee record

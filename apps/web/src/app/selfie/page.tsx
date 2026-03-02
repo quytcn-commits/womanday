@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiUpload, apiFetch, getApiUrl } from "@/lib/api";
 import { getUser, updateUser } from "@/lib/auth";
@@ -9,9 +9,35 @@ const FALLBACK_COLORS = ["from-brand-hot/50 to-brand-rose/30", "from-brand-rose/
 
 interface TemplateOption { id: number; name: string; previewUrl: string | null; }
 
+/** Resize image via canvas — reliable preview on all mobile browsers, handles EXIF */
+function createPreview(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX = 640;
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+        else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error("Cannot decode image"));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error("Cannot read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function SelfiePage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -33,15 +59,21 @@ export default function SelfiePage() {
       .catch(() => {});
   }, [router]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setError("Vui lòng chọn file ảnh"); return; }
+    // On some Android devices, camera files have empty MIME type
+    if (file.type && !file.type.startsWith("image/")) { setError("Vui lòng chọn file ảnh"); return; }
+    if (file.size > 15 * 1024 * 1024) { setError("Ảnh quá lớn (tối đa 15MB)"); return; }
     setSelectedFile(file);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    setStep("preview");
     setError("");
+    try {
+      const preview = await createPreview(file);
+      setPreviewUrl(preview);
+      setStep("preview");
+    } catch {
+      setError("Không thể đọc ảnh, vui lòng thử lại");
+    }
   };
 
   async function handleSubmit() {
@@ -59,7 +91,9 @@ export default function SelfiePage() {
       updateUser({ selfieUrl: res.selfieUrl, cardImageUrl: res.cardImageUrl, cardTemplateId: templateId, greeting: res.greeting ?? null });
       router.push("/ready");
     } catch (err: any) {
-      setError(err.message || "Upload thất bại, thử lại");
+      const msg = err.code === 413 ? "Ảnh quá lớn, vui lòng chọn ảnh nhỏ hơn" :
+        err.message || "Upload thất bại, vui lòng thử lại";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -77,9 +111,10 @@ export default function SelfiePage() {
           <p className="text-brand-rose/50 text-sm mt-1 font-light tracking-wider">Bước 1/2</p>
         </div>
 
-        <div
-          className="glass p-6 mb-4 cursor-pointer hover:border-brand-hot/30 hover:shadow-[0_4px_30px_rgba(232,96,122,0.12)] transition-all duration-300"
-          onClick={() => fileInputRef.current?.click()}
+        {/* Use <label htmlFor> instead of programmatic click — most reliable on mobile Samsung/Android */}
+        <label
+          htmlFor="selfie-input"
+          className="glass p-6 mb-4 cursor-pointer hover:border-brand-hot/30 hover:shadow-[0_4px_30px_rgba(232,96,122,0.12)] transition-all duration-300 block"
         >
           {previewUrl ? (
             <div className="relative">
@@ -95,8 +130,15 @@ export default function SelfiePage() {
               <p className="text-xs text-brand-rose/30 font-light">JPG/PNG, tối đa 3MB</p>
             </div>
           )}
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-        </div>
+        </label>
+        {/* sr-only instead of hidden — display:none breaks file input on some Samsung browsers */}
+        <input
+          id="selfie-input"
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="sr-only"
+        />
 
         {step === "preview" && (
           <div className="glass p-4 mb-4 animate-fade-in">
@@ -147,12 +189,12 @@ export default function SelfiePage() {
         )}
 
         {step === "upload" && (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full border border-brand-hot/40 text-brand-hot font-bold py-4 rounded-2xl hover:bg-brand-hot/10 hover:shadow-[0_4px_24px_rgba(232,96,122,0.15)] transition-all duration-300"
+          <label
+            htmlFor="selfie-input"
+            className="w-full border border-brand-hot/40 text-brand-hot font-bold py-4 rounded-2xl hover:bg-brand-hot/10 hover:shadow-[0_4px_24px_rgba(232,96,122,0.15)] transition-all duration-300 block text-center cursor-pointer"
           >
             Chọn Ảnh Selfie
-          </button>
+          </label>
         )}
       </div>
     </div>
