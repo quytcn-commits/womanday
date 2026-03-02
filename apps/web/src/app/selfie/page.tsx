@@ -9,31 +9,24 @@ const FALLBACK_COLORS = ["from-brand-hot/50 to-brand-rose/30", "from-brand-rose/
 
 interface TemplateOption { id: number; name: string; previewUrl: string | null; }
 
-/** Resize image via canvas — reliable preview on all mobile browsers, handles EXIF */
-function createPreview(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX = 640;
-        let w = img.naturalWidth, h = img.naturalHeight;
-        if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
-        else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { reject(new Error("Canvas not supported")); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
-      };
-      img.onerror = () => reject(new Error("Cannot decode image"));
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => reject(new Error("Cannot read file"));
-    reader.readAsDataURL(file);
-  });
+/** Create resized preview using createImageBitmap — supports HEIC/HEIF natively via OS decoder */
+async function createPreview(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    const MAX = 640;
+    let w = bitmap.width, h = bitmap.height;
+    if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+    else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } finally {
+    bitmap.close();
+  }
 }
 
 export default function SelfiePage() {
