@@ -9,8 +9,8 @@ const FALLBACK_COLORS = ["from-brand-hot/50 to-brand-rose/30", "from-brand-rose/
 
 interface TemplateOption { id: number; name: string; previewUrl: string | null; }
 
-/** Create resized preview using createImageBitmap — supports HEIC/HEIF natively via OS decoder */
-async function createPreview(file: File): Promise<string> {
+/** Try client-side preview using createImageBitmap (handles JPEG/PNG/WebP, may fail for HEIC) */
+async function tryClientPreview(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
     const canvas = document.createElement("canvas");
@@ -41,8 +41,11 @@ export default function SelfiePage() {
     { id: 3, name: "Tím Thanh Lịch", previewUrl: null },
   ]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState<"upload" | "preview">("upload");
+  // Track if selfie was already uploaded to server (for HEIC fallback)
+  const [selfieOnServer, setSelfieOnServer] = useState(false);
 
   useEffect(() => {
     const user = getUser();
@@ -59,28 +62,60 @@ export default function SelfiePage() {
     if (file.type && !file.type.startsWith("image/")) { setError("Vui lòng chọn file ảnh"); return; }
     if (file.size > 15 * 1024 * 1024) { setError("Ảnh quá lớn (tối đa 15MB)"); return; }
     setSelectedFile(file);
+    setSelfieOnServer(false);
     setError("");
+
+    // Strategy 1: Client-side preview (instant, works for JPEG/PNG/WebP)
     try {
-      const preview = await createPreview(file);
+      const preview = await tryClientPreview(file);
       setPreviewUrl(preview);
       setStep("preview");
+      return;
     } catch {
-      setError("Không thể đọc ảnh, vui lòng thử lại");
+      // HEIC or unsupported format — fall through to server preview
+    }
+
+    // Strategy 2: Upload to server for conversion (HEIC → JPEG via sharp)
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiUpload<{ success: boolean; selfieUrl: string }>(
+        "/api/v1/selfie/upload-preview",
+        formData
+      );
+      // Use server-converted JPEG as preview
+      setPreviewUrl(getApiUrl(res.selfieUrl) + "?t=" + Date.now());
+      setSelfieOnServer(true);
+      setStep("preview");
+    } catch (err: any) {
+      setError(err.message || "Không thể tải ảnh lên, vui lòng thử lại");
+    } finally {
+      setUploading(false);
     }
   };
 
   async function handleSubmit() {
-    if (!selectedFile) { setError("Vui lòng chọn ảnh selfie"); return; }
+    if (!selectedFile && !selfieOnServer) { setError("Vui lòng chọn ảnh selfie"); return; }
     setLoading(true);
     setError("");
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("template_id", String(templateId));
-      const res = await apiUpload<{ success: boolean; selfieUrl: string; cardImageUrl: string | null; greeting: string | null }>(
-        "/api/v1/selfie/upload",
-        formData
-      );
+      let res: { success: boolean; selfieUrl: string; cardImageUrl: string | null; greeting: string | null };
+
+      if (selfieOnServer) {
+        // Selfie already on server (HEIC was uploaded via preview) — just generate card
+        res = await apiFetch<typeof res>("/api/v1/selfie/generate-card", {
+          method: "POST",
+          body: JSON.stringify({ template_id: templateId }),
+        });
+      } else {
+        // Normal flow: upload selfie + generate card in one step
+        const formData = new FormData();
+        formData.append("file", selectedFile!);
+        formData.append("template_id", String(templateId));
+        res = await apiUpload<typeof res>("/api/v1/selfie/upload", formData);
+      }
+
       updateUser({ selfieUrl: res.selfieUrl, cardImageUrl: res.cardImageUrl, cardTemplateId: templateId, greeting: res.greeting ?? null });
       router.push("/ready");
     } catch (err: any) {
@@ -104,12 +139,16 @@ export default function SelfiePage() {
           <p className="text-brand-rose/50 text-sm mt-1 font-light tracking-wider">Bước 1/2</p>
         </div>
 
-        {/* Use <label htmlFor> instead of programmatic click — most reliable on mobile Samsung/Android */}
         <label
           htmlFor="selfie-input"
           className="glass p-6 mb-4 cursor-pointer hover:border-brand-hot/30 hover:shadow-[0_4px_30px_rgba(232,96,122,0.12)] transition-all duration-300 block"
         >
-          {previewUrl ? (
+          {uploading ? (
+            <div className="aspect-square flex flex-col items-center justify-center gap-3 rounded-2xl">
+              <div className="w-10 h-10 border-3 border-brand-hot/30 border-t-brand-hot rounded-full animate-spin" />
+              <p className="text-sm font-light text-brand-deep/50">Đang xử lý ảnh...</p>
+            </div>
+          ) : previewUrl ? (
             <div className="relative">
               <img src={previewUrl} alt="Preview" className="w-full aspect-square object-cover rounded-2xl" />
               <div className="absolute inset-0 flex items-center justify-center bg-brand-deep/30 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-300">
@@ -120,11 +159,10 @@ export default function SelfiePage() {
             <div className="aspect-square flex flex-col items-center justify-center text-brand-rose/40 gap-3 border-2 border-dashed border-brand-hot/20 rounded-2xl">
               <span className="text-5xl">🌸</span>
               <p className="text-sm font-light text-brand-deep/50">Nhấn để chọn ảnh selfie</p>
-              <p className="text-xs text-brand-rose/30 font-light">JPG/PNG, tối đa 3MB</p>
+              <p className="text-xs text-brand-rose/30 font-light">Hỗ trợ tất cả định dạng ảnh</p>
             </div>
           )}
         </label>
-        {/* sr-only instead of hidden — display:none breaks file input on some Samsung browsers */}
         <input
           id="selfie-input"
           type="file"
@@ -177,11 +215,11 @@ export default function SelfiePage() {
             disabled={loading}
             className="w-full bg-gradient-to-r from-brand-hot to-brand-mauve text-white font-bold py-4 rounded-2xl hover:shadow-[0_4px_24px_rgba(232,96,122,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 text-lg"
           >
-            {loading ? "Đang xử lý..." : "LƯU VÀ TIẾP TỤC"}
+            {loading ? "Đang tạo thiệp..." : "LƯU VÀ TIẾP TỤC"}
           </button>
         )}
 
-        {step === "upload" && (
+        {step === "upload" && !uploading && (
           <label
             htmlFor="selfie-input"
             className="w-full border border-brand-hot/40 text-brand-hot font-bold py-4 rounded-2xl hover:bg-brand-hot/10 hover:shadow-[0_4px_24px_rgba(232,96,122,0.15)] transition-all duration-300 block text-center cursor-pointer"

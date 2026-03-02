@@ -29,6 +29,99 @@ export async function selfieRoutes(app: FastifyInstance) {
     return reply.send({ templates });
   });
 
+  // POST /api/v1/selfie/upload-preview  (multipart: file only — save selfie, no card gen)
+  // Used as fallback when mobile browser can't decode HEIC for client-side preview
+  app.post("/upload-preview", { preHandler: [app.authenticate] }, async (req: FastifyRequest, reply) => {
+    const userId = (req.user as { id: string }).id;
+    const parts = req.parts();
+    let fileBuffer: Buffer | null = null;
+
+    for await (const part of parts) {
+      if (part.type === "file" && part.fieldname === "file") {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of part.file) {
+          size += chunk.length;
+          if (size > MAX_SIZE) {
+            return reply.code(400).send({ success: false, error: "FILE_TOO_LARGE", message: "Ảnh tối đa 3MB" });
+          }
+          chunks.push(chunk);
+        }
+        fileBuffer = Buffer.concat(chunks);
+      }
+    }
+
+    if (!fileBuffer) {
+      return reply.code(400).send({ success: false, error: "NO_FILE", message: "Không có ảnh được tải lên" });
+    }
+
+    const selfiesDir = path.join(UPLOAD_DIR, "selfies");
+    fs.mkdirSync(selfiesDir, { recursive: true });
+    const selfieFilename = `${userId}.jpg`;
+    const selfieLocalPath = path.join(selfiesDir, selfieFilename);
+    const processedBuffer = await sharp(fileBuffer)
+      .rotate()
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    fs.writeFileSync(selfieLocalPath, processedBuffer);
+    const selfieUrl = `/uploads/selfies/${selfieFilename}`;
+
+    await prisma.employee.update({
+      where: { id: userId },
+      data: { selfieUrl },
+    });
+
+    return reply.send({ success: true, selfieUrl });
+  });
+
+  // POST /api/v1/selfie/generate-card  (JSON: template_id — generate card from saved selfie)
+  app.post("/generate-card", { preHandler: [app.authenticate] }, async (req: FastifyRequest, reply) => {
+    const userId = (req.user as { id: string }).id;
+    const { template_id } = req.body as { template_id?: number };
+    const templateId = template_id || 1;
+
+    const emp = await prisma.employee.findUnique({ where: { id: userId } });
+    if (!emp || !emp.selfieUrl) {
+      return reply.code(400).send({ success: false, error: "NO_SELFIE", message: "Chưa upload ảnh selfie" });
+    }
+
+    const selfieLocalPath = path.join(UPLOAD_DIR, "selfies", `${userId}.jpg`);
+    if (!fs.existsSync(selfieLocalPath)) {
+      return reply.code(400).send({ success: false, error: "NO_SELFIE", message: "Không tìm thấy ảnh selfie" });
+    }
+
+    await prisma.employee.update({
+      where: { id: userId },
+      data: { cardTemplateId: templateId },
+    });
+
+    let cardImageUrl: string | null = null;
+    try {
+      cardImageUrl = await generateCardImage({
+        userId,
+        name: emp.name,
+        dept: emp.dept,
+        selfieLocalPath,
+        templateId,
+      });
+      await prisma.employee.update({ where: { id: userId }, data: { cardImageUrl } });
+      await prisma.generatedImage.deleteMany({ where: { userId, type: "card" } });
+      await prisma.generatedImage.create({
+        data: { userId, type: "card", imageUrl: cardImageUrl },
+      });
+    } catch (e) {
+      console.error("[Selfie] Card gen error:", e);
+    }
+
+    return reply.send({
+      success: true,
+      selfieUrl: emp.selfieUrl,
+      cardImageUrl,
+      greeting: getGreeting(userId),
+      message: "Thiệp đã được tạo thành công",
+    });
+  });
+
   // POST /api/v1/selfie/upload  (multipart: file + template_id)
   app.post("/upload", { preHandler: [app.authenticate] }, async (req: FastifyRequest, reply) => {
     const userId = (req.user as { id: string }).id;
