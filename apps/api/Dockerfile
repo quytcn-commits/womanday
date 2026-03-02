@@ -36,6 +36,10 @@ RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
 # Build API (TypeScript → dist/)
 RUN cd apps/api && npx tsc
 
+# Compile seed.ts for production use
+RUN npx tsc --esModuleInterop --module commonjs --target ES2020 \
+    --skipLibCheck --outDir /tmp/seed packages/database/prisma/seed.ts
+
 # ── Stage 3: Production runner ────────────────────────
 FROM node:20-slim AS runner
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
@@ -49,6 +53,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/database/prisma ./prisma
 COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/packages/types/package.json ./packages/types/package.json
+
+# Copy compiled seed script
+COPY --from=build /tmp/seed/seed.js ./seed.js
 
 # Copy entrypoint (strip Windows CRLF line endings)
 COPY apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
