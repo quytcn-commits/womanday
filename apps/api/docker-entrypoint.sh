@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-echo "🔄 Running Prisma migrations..."
-npx prisma migrate deploy --schema=./prisma/schema.prisma
+echo "🔄 Syncing database schema..."
+npx prisma db push --schema=./prisma/schema.prisma --accept-data-loss
 
 echo "🌸 Starting WomanDay API..."
 exec node dist/index.js

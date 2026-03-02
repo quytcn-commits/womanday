@@ -1,5 +1,8 @@
-# ── Stage 1: Install dependencies ──────────────────────
-FROM node:20-slim AS deps
+# ── Stage 1: Build (install + compile in one stage) ─────
+# npm workspaces create symlinks during install; COPY between
+# Docker stages does NOT preserve symlinks, so we must install
+# and build in the same stage for standalone file-tracing to work.
+FROM node:20-slim AS build
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -10,18 +13,10 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/types/package.json ./packages/types/
 
-# Install all dependencies (monorepo)
+# Install all dependencies (monorepo — workspace symlinks intact)
 RUN npm ci
 
-# ── Stage 2: Build ────────────────────────────────────
-FROM node:20-slim AS build
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
-
 # Copy source
-COPY package.json turbo.json ./
 COPY apps/web/ ./apps/web/
 COPY packages/types/ ./packages/types/
 
@@ -37,7 +32,15 @@ ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 # Build Next.js (standalone output with monorepo root tracing)
 RUN cd apps/web && npx next build
 
-# ── Stage 3: Production runner ────────────────────────
+# Debug: verify standalone output structure
+RUN echo "=== Standalone structure ===" && \
+    ls -la apps/web/.next/standalone/ && \
+    echo "=== node_modules/next exists? ===" && \
+    ls -d apps/web/.next/standalone/node_modules/next 2>/dev/null && echo "YES at root" || true && \
+    ls -d apps/web/.next/standalone/apps/web/node_modules/next 2>/dev/null && echo "YES at apps/web" || true && \
+    find apps/web/.next/standalone -name "next" -maxdepth 4 -type d || true
+
+# ── Stage 2: Production runner ────────────────────────
 FROM node:20-slim AS runner
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
