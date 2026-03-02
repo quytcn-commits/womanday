@@ -1,0 +1,16 @@
+node_modules
+.env
+.env.local
+.env.production
+.turbo
+dist
+.next
+*.log
+uploads/selfies/*
+uploads/cards/*
+uploads/results/*
+uploads/templates/*
+!uploads/.gitkeep
+packages/types/dist
+*.tsbuildinfo
+.claude

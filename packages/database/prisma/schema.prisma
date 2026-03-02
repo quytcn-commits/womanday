@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// EMPLOYEES
+// ─────────────────────────────────────────────
+model Employee {
+  id             String    @id @default(uuid())
+  cccd           String    @unique
+  dob            DateTime  @db.Date
+  name           String
+  position       String
+  dept           String
+  role           String    @default("user")
+  hasSpun        Boolean   @default(false)
+  selfieUrl      String?
+  cardTemplateId Int?
+  cardImageUrl   String?
+  resultImageUrl String?
+  isMuted        Boolean   @default(false)
+  mutedUntil     DateTime?
+  megaphoneSmall Int       @default(0)
+  megaphoneBig   Int       @default(0)
+  flowerBalance  Int       @default(0)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  roomParticipants RoomParticipant[]
+  spinLogs         SpinLog[]
+  assignedPrizes   Prize[]           @relation("AssignedTo")
+  chatMessages     ChatMessage[]
+  generatedImages  GeneratedImage[]
+  wishesSent       Wish[]            @relation("WishesSent")
+  wishesReceived   Wish[]            @relation("WishesReceived")
+  likesGiven       CardLike[]        @relation("LikesGiven")
+  likesReceived    CardLike[]        @relation("LikesReceived")
+  quizAnswers      QuizAnswer[]
+
+  @@map("employees")
+}
+
+// ─────────────────────────────────────────────
+// ROOMS
+// ─────────────────────────────────────────────
+model Room {
+  id                  String    @id
+  name                String?
+  status              String    @default("CREATED")
+  capacity            Int       @default(12)
+  createdBy           String?
+  eventRound          Int       @default(1)
+  waitingStartedAt    DateTime?
+  autoStartAt         DateTime?
+  lockedAt            DateTime?
+  countdownStartedAt  DateTime?
+  spinStartedAt       DateTime?
+  doneAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  participants RoomParticipant[]
+  spinLogs     SpinLog[]
+  chatMessages ChatMessage[]
+  images       GeneratedImage[]
+
+  @@map("rooms")
+}
+
+// ─────────────────────────────────────────────
+// ROOM PARTICIPANTS
+// ─────────────────────────────────────────────
+model RoomParticipant {
+  id         String   @id @default(uuid())
+  roomId     String
+  userId     String
+  slotIndex  Int
+  state      String   @default("JOINED")
+  joinedAt   DateTime @default(now())
+
+  room Room     @relation(fields: [roomId], references: [id])
+  user Employee @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+  @@unique([roomId, slotIndex])
+  @@map("room_participants")
+}
+
+// ─────────────────────────────────────────────
+// PRIZE POOL (400 prizes pre-generated)
+// ─────────────────────────────────────────────
+model Prize {
+  id           String    @id @default(uuid())
+  tier         String
+  label        String    @default("")
+  value        Int
+  assigned     Boolean   @default(false)
+  assignedTo   String?
+  assignedAt   DateTime?
+  eventRound   Int       @default(1)
+  createdAt    DateTime  @default(now())
+
+  employee Employee? @relation("AssignedTo", fields: [assignedTo], references: [id])
+  spinLog  SpinLog?
+
+  @@unique([assignedTo, eventRound])
+  @@index([assigned, tier, eventRound])
+  @@map("prize_pool")
+}
+
+// ─────────────────────────────────────────────
+// SPIN LOGS (audit)
+// ─────────────────────────────────────────────
+model SpinLog {
+  id         String   @id @default(uuid())
+  roomId     String
+  userId     String
+  prizeId    String   @unique
+  tier       String
+  value      Int
+  slotIndex  Int
+  eventRound Int      @default(1)
+  spunAt     DateTime @default(now())
+
+  room  Room     @relation(fields: [roomId], references: [id])
+  user  Employee @relation(fields: [userId], references: [id])
+  prize Prize    @relation(fields: [prizeId], references: [id])
+
+  @@unique([userId, eventRound])
+  @@map("spin_logs")
+}
+
+// ─────────────────────────────────────────────
+// GENERATED IMAGES
+// ─────────────────────────────────────────────
+model GeneratedImage {
+  id         String   @id @default(uuid())
+  userId     String
+  roomId     String?
+  type       String
+  imageUrl   String
+  createdAt  DateTime @default(now())
+
+  user Employee @relation(fields: [userId], references: [id])
+  room Room?    @relation(fields: [roomId], references: [id])
+
+  @@map("generated_images")
+}
+
+// ─────────────────────────────────────────────
+// CHAT MESSAGES
+// ─────────────────────────────────────────────
+model ChatMessage {
+  id        String    @id @default(uuid())
+  roomId    String?
+  userId    String
+  message   String
+  type      String    @default("user")
+  reactions Json      @default("{}")
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  deletedBy String?
+
+  user Employee  @relation(fields: [userId], references: [id])
+  room Room?     @relation(fields: [roomId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
+
+// ─────────────────────────────────────────────
+// WISHES (Lời chúc 8/3)
+// ─────────────────────────────────────────────
+model Wish {
+  id        String   @id @default(uuid())
+  fromId    String
+  toId      String
+  flower    String   @default("🌸")
+  message   String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+
+  from Employee @relation("WishesSent", fields: [fromId], references: [id])
+  to   Employee @relation("WishesReceived", fields: [toId], references: [id])
+
+  @@index([toId, createdAt])
+  @@index([fromId])
+  @@map("wishes")
+}
+
+// ─────────────────────────────────────────────
+// CARD LIKES (Gallery hearts)
+// ─────────────────────────────────────────────
+model CardLike {
+  id           String   @id @default(uuid())
+  userId       String
+  targetUserId String
+  createdAt    DateTime @default(now())
+
+  user       Employee @relation("LikesGiven", fields: [userId], references: [id])
+  targetUser Employee @relation("LikesReceived", fields: [targetUserId], references: [id])
+
+  @@unique([userId, targetUserId])
+  @@index([targetUserId])
+  @@map("card_likes")
+}
+
+// ─────────────────────────────────────────────
+// QUIZ ANSWERS
+// ─────────────────────────────────────────────
+model QuizAnswer {
+  id            String   @id @default(uuid())
+  userId        String
+  questionId    Int
+  selectedIndex Int
+  isCorrect     Boolean
+  answeredAt    DateTime @default(now())
+
+  user Employee @relation(fields: [userId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("quiz_answers")
+}
+
+// ─────────────────────────────────────────────
+// EVENT CONFIG
+// ─────────────────────────────────────────────
+model EventConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("event_config")
+}
