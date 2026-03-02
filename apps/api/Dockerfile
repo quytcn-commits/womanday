@@ -50,9 +50,9 @@ COPY --from=build /app/packages/database/prisma ./prisma
 COPY --from=build /app/packages/types/dist ./packages/types/dist
 COPY --from=build /app/packages/types/package.json ./packages/types/package.json
 
-# Copy entrypoint
+# Copy entrypoint (strip Windows CRLF line endings)
 COPY apps/api/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 
 # Create uploads directory
 RUN mkdir -p uploads/selfies uploads/cards uploads/results uploads/templates
