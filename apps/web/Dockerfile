@@ -52,6 +52,12 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 
+# Ensure server.js is at expected path (handle with/without outputFileTracingRoot)
+RUN if [ ! -f "apps/web/server.js" ] && [ -f "server.js" ]; then \
+      mkdir -p apps/web && cp server.js apps/web/server.js; \
+    fi
+RUN ls -la apps/web/server.js || (echo "ERROR: server.js not found!" && find /app -name "server.js" && exit 1)
+
 USER nextjs
 
 EXPOSE 3000
