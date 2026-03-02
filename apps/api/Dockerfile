@@ -1,6 +1,6 @@
 # ── Stage 1: Install dependencies ──────────────────────
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+FROM node:20-slim AS deps
+RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy workspace root files
@@ -15,8 +15,8 @@ COPY packages/types/package.json ./packages/types/
 RUN npm ci
 
 # ── Stage 2: Build ────────────────────────────────────
-FROM node:20-alpine AS build
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS build
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -37,8 +37,8 @@ RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
 RUN cd apps/api && npx tsc
 
 # ── Stage 3: Production runner ────────────────────────
-FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS runner
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 ENV NODE_ENV=production
