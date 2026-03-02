@@ -179,7 +179,7 @@ function EnvelopeSealed({ userName, onClick }: { userName: string; onClick: () =
         </motion.div>
 
         <p style={{ color: "rgba(139,58,80,0.45)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.30em", marginBottom: 6 }}>
-          Thiep danh rieng cho
+          Thiệp dành riêng cho
         </p>
         <h2 style={{ color: "#8B3A50", fontSize: 22, fontWeight: 700, fontStyle: "italic", marginBottom: 20, lineHeight: 1.3, textShadow: "0 2px 18px rgba(232,96,122,0.15)" }}>
           {userName}
@@ -205,7 +205,7 @@ function EnvelopeSealed({ userName, onClick }: { userName: string; onClick: () =
             fontSize: 13, fontWeight: 700, letterSpacing: "0.06em",
             boxShadow: "0 0 22px rgba(196,164,120,0.12), inset 0 1px 0 rgba(255,253,245,0.30)",
           }}>
-            ✦ Cham de mo thiep ✦
+            ✦ Chạm để mở thiệp ✦
           </div>
         </motion.div>
 
@@ -338,7 +338,7 @@ export default function ReadyPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setReuploadError("Vui long chon file anh"); return; }
+    if (!file.type.startsWith("image/")) { setReuploadError("Vui lòng chọn file ảnh"); return; }
     setReuploadLoading(true);
     setReuploadError("");
     try {
@@ -356,9 +356,9 @@ export default function ReadyPage() {
         if (res.greeting) setGreeting(res.greeting);
         setCardOpened(false);
       }
-      showToast("Da cap nhat anh — mo thiep moi nhe!");
+      showToast("Đã cập nhật ảnh — mở thiệp mới nhe!");
     } catch (err: any) {
-      setReuploadError(err.message || "Upload that bai, thu lai");
+      setReuploadError(err.message || "Upload thất bại, thử lại");
     } finally {
       setReuploadLoading(false);
     }
@@ -381,7 +381,7 @@ export default function ReadyPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      showToast("Khong tai duoc anh, thu lai");
+      showToast("Không tải được ảnh, thử lại");
     } finally {
       setSharing(false);
     }
@@ -429,8 +429,8 @@ export default function ReadyPage() {
         {/* Header */}
         <div className="text-center animate-fade-in">
           <div className="text-5xl mb-3">🌸</div>
-          <h1 className="text-xl font-bold text-brand-deep tracking-wide">Thiep Da San Sang!</h1>
-          <p className="text-brand-hot mt-1 italic font-light">Xin chao, {user.name}</p>
+          <h1 className="text-xl font-bold text-brand-deep tracking-wide">Thiệp Đã Sẵn Sàng!</h1>
+          <p className="text-brand-hot mt-1 italic font-light">Xin chào, {user.name}</p>
         </div>
 
         {/* Toast */}
@@ -482,10 +482,10 @@ export default function ReadyPage() {
                 <GoldCorner position="br" />
 
                 <div className="relative rounded-2xl overflow-hidden" style={{ zIndex: 1 }}>
-                  <img key={cardUrl} src={imgSrc} alt="Thiep cua ban" className="w-full rounded-2xl" />
+                  <img key={cardUrl} src={imgSrc} alt="Thiệp của bạn" className="w-full rounded-2xl" />
                   {reuploadLoading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl">
-                      <p className="text-brand-deep text-sm font-light animate-pulse">Dang tao thiep moi...</p>
+                      <p className="text-brand-deep text-sm font-light animate-pulse">Đang tạo thiệp mới...</p>
                     </div>
                   )}
                 </div>
@@ -499,7 +499,7 @@ export default function ReadyPage() {
                   >
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex-1 h-px" style={{ background: "rgba(196,164,120,0.30)" }} />
-                      <span style={{ color: "rgba(196,164,120,0.70)", fontSize: 10 }} className="uppercase tracking-widest font-light">✧ Loi chuc rieng cho ban ✧</span>
+                      <span style={{ color: "rgba(196,164,120,0.70)", fontSize: 10 }} className="uppercase tracking-widest font-light">✧ Lời chúc riêng cho bạn ✧</span>
                       <div className="flex-1 h-px" style={{ background: "rgba(196,164,120,0.30)" }} />
                     </div>
                     <p className="text-sm italic leading-relaxed px-2 font-light" style={{ color: "#8B3A50", opacity: 0.85 }}>&ldquo;{greeting}&rdquo;</p>
@@ -510,7 +510,7 @@ export default function ReadyPage() {
                       className="text-xs font-medium mt-3"
                       style={{ color: "#C4A478" }}
                     >
-                      Chuc Mung Ngay 8/3
+                      Chúc Mừng Ngày 8/3
                     </motion.p>
                   </motion.div>
                 )}
@@ -523,7 +523,7 @@ export default function ReadyPage() {
                     disabled={sharing || reuploadLoading}
                     className="flex-1 flex items-center justify-center gap-2 bg-brand-hot/15 text-brand-hot font-semibold py-2.5 rounded-2xl hover:bg-brand-hot/25 hover:shadow-[0_0_20px_rgba(232,96,122,0.15)] active:scale-[0.98] transition-all duration-300 text-sm disabled:opacity-50"
                   >
-                    {sharing ? "..." : "Tai thiep ve"}
+                    {sharing ? "..." : "Tải thiệp về"}
                   </button>
                   <button
                     onClick={shareCard}
@@ -547,7 +547,7 @@ export default function ReadyPage() {
             onClick={() => setWishModalOpen(true)}
             className="flex-1 glass px-4 py-3 rounded-2xl text-sm font-semibold text-brand-hot hover:bg-brand-hot/[0.08] active:scale-[0.98] transition-all duration-300 text-center"
           >
-            🌸 Gui loi chuc
+            🌸 Gửi lời chúc
           </button>
           <button
             onClick={() => router.push("/gallery")}
@@ -557,16 +557,16 @@ export default function ReadyPage() {
           </button>
         </div>
 
-        {/* Doi anh checkin */}
+        {/* Đổi ảnh checkin */}
         <div className="glass p-4">
-          <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest mb-3">Anh Checkin</p>
+          <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest mb-3">Ảnh Checkin</p>
           <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-semibold transition-all duration-300 border cursor-pointer
             ${reuploadLoading
               ? "opacity-50 pointer-events-none border-brand-hot/10 text-brand-deep/25 bg-white/30"
               : "border-brand-hot/30 text-brand-hot bg-brand-hot/[0.08] hover:bg-brand-hot/[0.15] hover:shadow-[0_0_20px_rgba(232,96,122,0.1)]"
             }`}
           >
-            {reuploadLoading ? "Dang xu ly..." : "Doi anh checkin"}
+            {reuploadLoading ? "Đang xử lý..." : "Đổi ảnh checkin"}
             <input
               ref={fileInputRef}
               type="file"
@@ -579,7 +579,7 @@ export default function ReadyPage() {
           {reuploadError && (
             <p className="text-red-500 text-xs text-center mt-2">{reuploadError}</p>
           )}
-          <p className="text-brand-deep/30 text-xs text-center mt-2 font-light">Chon anh moi — thiep se duoc tao lai tu dong</p>
+          <p className="text-brand-deep/30 text-xs text-center mt-2 font-light">Chọn ảnh mới — thiệp sẽ được tạo lại tự động</p>
         </div>
 
         {/* Has spun — result link + viewer option */}
@@ -589,7 +589,7 @@ export default function ReadyPage() {
               onClick={() => router.push("/result")}
               className="w-full glass px-4 py-3 rounded-2xl text-sm font-semibold text-brand-gold hover:bg-brand-gold/[0.08] active:scale-[0.98] transition-all duration-300 text-center"
             >
-              🏆 Xem ket qua quay thuong
+              🏆 Xem kết quả quay thưởng
             </button>
           </div>
         )}
@@ -598,7 +598,7 @@ export default function ReadyPage() {
         {currentRoom ? (
           <div className="glass p-4">
             <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest text-center mb-3">
-              {user.hasSpun ? "Xem phong dang dien ra" : "Scan QR de tham gia phong"}
+              {user.hasSpun ? "Xem phòng đang diễn ra" : "Scan QR để tham gia phòng"}
             </p>
             <div className="flex justify-center mb-3">
               <div className="bg-white p-2 rounded-2xl shadow-sm">
@@ -606,39 +606,39 @@ export default function ReadyPage() {
               </div>
             </div>
             <p className="text-brand-deep/40 text-xs text-center mb-1 font-light">
-              Phong #{currentRoom.id} — {currentRoom.participantCount}/12 nguoi
+              Phòng #{currentRoom.id} — {currentRoom.participantCount}/12 người
             </p>
             {user.hasSpun ? (
               <button
                 onClick={() => router.push(`/join?room=${currentRoom.id}`)}
                 className="w-full bg-gradient-to-r from-brand-gold/80 to-brand-mauve text-white font-bold py-3.5 rounded-2xl hover:shadow-[0_0_30px_rgba(196,151,122,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 text-base mt-2"
               >
-                XEM PHONG (Khan gia)
+                XEM PHÒNG (Khán giả)
               </button>
             ) : (
               <button
                 onClick={() => router.push(`/join?room=${currentRoom.id}`)}
                 className="w-full bg-gradient-to-r from-brand-hot to-brand-mauve text-white font-bold py-3.5 rounded-2xl hover:shadow-[0_0_30px_rgba(232,96,122,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 text-base mt-2"
               >
-                THAM GIA PHONG NGAY
+                THAM GIA PHÒNG NGAY
               </button>
             )}
           </div>
         ) : (
           <div className="glass p-5 text-center">
             <div className="text-3xl mb-2 animate-breathe">🌸</div>
-            <p className="text-brand-deep/60 text-sm font-light">Chua co phong nao dang mo.</p>
-            <p className="text-brand-deep/35 text-xs mt-1 font-light">Cho admin tao phong va scan QR tren man hinh livestream.</p>
+            <p className="text-brand-deep/60 text-sm font-light">Chưa có phòng nào đang mở.</p>
+            <p className="text-brand-deep/35 text-xs mt-1 font-light">Chờ admin tạo phòng và scan QR trên màn hình livestream.</p>
           </div>
         )}
 
         {/* Instructions */}
         <div className="glass p-4">
-          <p className="text-brand-deep font-semibold mb-2 text-sm">Cach tham gia:</p>
+          <p className="text-brand-deep font-semibold mb-2 text-sm">Cách tham gia:</p>
           <ol className="space-y-1.5 text-brand-deep/60 text-sm font-light">
-            <li className="flex gap-2"><span className="text-brand-hot font-bold">1.</span> Nhin len man hinh livestream</li>
-            <li className="flex gap-2"><span className="text-brand-hot font-bold">2.</span> Scan QR code hien thi tren man hinh</li>
-            <li className="flex gap-2"><span className="text-brand-hot font-bold">3.</span> Hoac scan QR ben tren neu co phong</li>
+            <li className="flex gap-2"><span className="text-brand-hot font-bold">1.</span> Nhìn lên màn hình livestream</li>
+            <li className="flex gap-2"><span className="text-brand-hot font-bold">2.</span> Scan QR code hiển thị trên màn hình</li>
+            <li className="flex gap-2"><span className="text-brand-hot font-bold">3.</span> Hoặc scan QR bên trên nếu có phòng</li>
           </ol>
         </div>
 

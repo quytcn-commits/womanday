@@ -65,7 +65,7 @@ function JoinRoomContent() {
           router.push("/login");
           return;
         }
-        setError(err.data?.message || err.message || "Khong tim thay phong");
+        setError(err.data?.message || err.message || "Không tìm thấy phòng");
       });
 
     const token = getToken();
@@ -194,7 +194,7 @@ function JoinRoomContent() {
         return;
       }
       if (err.code === 401) { router.push("/login"); return; }
-      setError(err.data?.message || err.message || "Khong the tham gia phong");
+      setError(err.data?.message || err.message || "Không thể tham gia phòng");
     } finally {
       setJoining(false);
     }
@@ -219,7 +219,7 @@ function JoinRoomContent() {
           <div className="text-4xl mb-3">🌸</div>
           <p className="text-brand-deep/60 font-light">{error}</p>
           <button onClick={() => router.push("/ready")} className="mt-4 text-brand-hot text-sm hover:text-brand-hot/80 transition-colors">
-            Quay lai
+            Quay lại
           </button>
         </div>
       </div>
@@ -229,7 +229,7 @@ function JoinRoomContent() {
   if (!room) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-pink">
-        <div className="text-brand-deep/40 animate-pulse font-light">Dang tai phong...</div>
+        <div className="text-brand-deep/40 animate-pulse font-light">Đang tải phòng...</div>
       </div>
     );
   }
@@ -253,13 +253,13 @@ function JoinRoomContent() {
         <div className="flex items-center justify-between pt-4 pb-3">
           <div>
             <h1 className="text-brand-deep font-black text-lg tracking-wider uppercase">
-              {room.name ? `${room.name} — ` : ""}Phong #{room.id}
+              {room.name ? `${room.name} — ` : ""}Phòng #{room.id}
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={currentStatus} />
               {isViewer && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-gold/20 text-brand-gold">
-                  Khan gia
+                  Khán giả
                 </span>
               )}
             </div>
@@ -269,7 +269,7 @@ function JoinRoomContent() {
               {room.participantCount}<span className="text-brand-deep/25 text-sm font-normal">/12</span>
             </p>
             {viewerCount > 0 && (
-              <p className="text-brand-deep/35 text-[10px] font-light">👁 {viewerCount} khan gia</p>
+              <p className="text-brand-deep/35 text-[10px] font-light">👁 {viewerCount} khán giả</p>
             )}
             {flowerBalance > 0 && (
               <p className="text-brand-gold text-xs font-semibold">🌸 x{flowerBalance}</p>
@@ -321,7 +321,7 @@ function JoinRoomContent() {
                 {myResult.tier === "FIRST" ? "🌟" : myResult.tier === "SECOND" ? "✨" : myResult.tier === "THIRD" ? "🌸" : "💐"}
               </div>
               <p className="text-brand-deep font-bold">{myResult.label}</p>
-              <p className="text-brand-deep/40 text-xs mt-1 font-light">Dang tao anh ket qua...</p>
+              <p className="text-brand-deep/40 text-xs mt-1 font-light">Đang tạo ảnh kết quả...</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -334,7 +334,7 @@ function JoinRoomContent() {
             whileTap={{ scale: 0.97 }}
             className="w-full bg-gradient-to-r from-brand-hot via-brand-rose to-brand-mauve text-white font-black py-4 rounded-2xl hover:shadow-[0_0_35px_rgba(232,96,122,0.3)] hover:scale-[1.02] transition-all duration-300 text-base disabled:opacity-50"
           >
-            {joining ? "Dang tham gia..." : "THAM GIA PHONG"}
+            {joining ? "Đang tham gia..." : "THAM GIA PHÒNG"}
           </motion.button>
         )}
 
@@ -344,7 +344,7 @@ function JoinRoomContent() {
             whileTap={{ scale: 0.97 }}
             className="w-full bg-white/60 border border-brand-gold/30 text-brand-gold font-bold py-3 rounded-2xl hover:bg-white/80 hover:border-brand-gold/50 transition-all duration-300 text-sm"
           >
-            👁 XEM PHONG (Khan gia)
+            👁 XEM PHÒNG (Khán giả)
           </motion.button>
         )}
 
@@ -358,8 +358,8 @@ function JoinRoomContent() {
         {joined && !isViewer && (currentStatus === "WAITING" || currentStatus === "CREATED") && (
           <div className="space-y-3">
             <div className="glass px-4 py-3 text-center">
-              <p className="text-brand-hot font-semibold text-sm">Ban da vao phong — Slot #{mySlot}</p>
-              <p className="text-brand-deep/35 text-xs mt-0.5 font-light">Dang cho phong bat dau...</p>
+              <p className="text-brand-hot font-semibold text-sm">Bạn đã vào phòng — Slot #{mySlot}</p>
+              <p className="text-brand-deep/35 text-xs mt-0.5 font-light">Đang chờ phòng bắt đầu...</p>
             </div>
             <MiniQuiz />
           </div>
@@ -369,9 +369,9 @@ function JoinRoomContent() {
         {isViewer && (currentStatus === "WAITING" || currentStatus === "CREATED") && (
           <div className="space-y-3">
             <div className="glass px-4 py-3 text-center">
-              <p className="text-brand-gold font-semibold text-sm">Ban dang xem phong nay</p>
+              <p className="text-brand-gold font-semibold text-sm">Bạn đang xem phòng này</p>
               <p className="text-brand-deep/35 text-xs mt-0.5 font-light">
-                Tra loi quiz de nhan loa va hoa! Bam vao card de gui hoa 🌸
+                Trả lời quiz để nhận loa và hoa! Bấm vào card để gửi hoa 🌸
               </p>
             </div>
             <MiniQuiz />
@@ -392,7 +392,7 @@ function JoinRoomContent() {
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ repeat: Infinity, duration: 1.5 }}
             >
-              Dang quay thuong...
+              Đang quay thưởng...
             </motion.p>
           </div>
         )}
@@ -400,12 +400,12 @@ function JoinRoomContent() {
         {/* Viewer: room done */}
         {isViewer && currentStatus === "DONE" && (
           <div className="glass px-4 py-3 text-center space-y-2">
-            <p className="text-brand-deep font-semibold text-sm">Phong da quay xong!</p>
+            <p className="text-brand-deep font-semibold text-sm">Phòng đã quay xong!</p>
             <button
               onClick={() => router.push("/ready")}
               className="text-brand-hot text-xs font-semibold hover:text-brand-hot/70 transition-colors"
             >
-              Quay lai
+              Quay lại
             </button>
           </div>
         )}
@@ -413,7 +413,7 @@ function JoinRoomContent() {
         {/* Non-viewer status messages */}
         {!isViewer && currentStatus === "LOCKED" && (
           <div className="glass px-4 py-3 text-center">
-            <p className="text-brand-deep font-semibold text-sm">Phong da khoa — Sap bat dau dem nguoc...</p>
+            <p className="text-brand-deep font-semibold text-sm">Phòng đã khoá — Sắp bắt đầu đếm ngược...</p>
           </div>
         )}
 
@@ -424,7 +424,7 @@ function JoinRoomContent() {
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ repeat: Infinity, duration: 1.5 }}
             >
-              Dang quay thuong...
+              Đang quay thưởng...
             </motion.p>
           </div>
         )}
@@ -436,13 +436,13 @@ function JoinRoomContent() {
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; color: string }> = {
-    CREATED:   { label: "Chuan bi",     color: "bg-brand-deep/10 text-brand-deep/50" },
-    WAITING:   { label: "Dang cho",     color: "bg-status-waiting/20 text-status-waiting" },
-    LOCKED:    { label: "Da khoa",      color: "bg-status-locked/20 text-status-locked" },
-    COUNTDOWN: { label: "Dem nguoc",    color: "bg-brand-gold/20 text-brand-gold" },
-    SPINNING:  { label: "Dang quay",    color: "bg-status-spinning/20 text-status-spinning animate-pulse" },
-    REVEAL:    { label: "Mo thuong",    color: "bg-brand-rose/20 text-brand-rose" },
-    DONE:      { label: "Hoan thanh",   color: "bg-status-done/20 text-status-done" },
+    CREATED:   { label: "Chuẩn bị",     color: "bg-brand-deep/10 text-brand-deep/50" },
+    WAITING:   { label: "Đang chờ",     color: "bg-status-waiting/20 text-status-waiting" },
+    LOCKED:    { label: "Đã khoá",      color: "bg-status-locked/20 text-status-locked" },
+    COUNTDOWN: { label: "Đếm ngược",    color: "bg-brand-gold/20 text-brand-gold" },
+    SPINNING:  { label: "Đang quay",    color: "bg-status-spinning/20 text-status-spinning animate-pulse" },
+    REVEAL:    { label: "Mở thưởng",    color: "bg-brand-rose/20 text-brand-rose" },
+    DONE:      { label: "Hoàn thành",   color: "bg-status-done/20 text-status-done" },
   };
   const c = config[status] || config.WAITING;
   return (
@@ -454,7 +454,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function JoinPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-brand-pink text-brand-deep/40 font-light">Dang tai...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-brand-pink text-brand-deep/40 font-light">Đang tải...</div>}>
       <JoinRoomContent />
     </Suspense>
   );

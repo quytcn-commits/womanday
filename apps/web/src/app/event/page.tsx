@@ -102,7 +102,7 @@ export default function EventPage() {
         setEventName(info.eventName);
         setEventStatus(info.eventStatus);
       })
-      .catch(() => setError("Khong the tai thong tin su kien"));
+      .catch(() => setError("Không thể tải thông tin sự kiện"));
 
     // Fetch flower balance
     apiFetch<{ flowerBalance: number }>("/api/v1/quiz/balance")
@@ -268,7 +268,7 @@ export default function EventPage() {
         return;
       }
       if (err.code === 401) { router.push("/login"); return; }
-      setError(err.data?.message || "Khong the tham gia su kien");
+      setError(err.data?.message || "Không thể tham gia sự kiện");
       setPageState("IDLE");
     }
   }
@@ -375,13 +375,13 @@ export default function EventPage() {
         <div className="flex items-center justify-between pt-4 pb-3">
           <div>
             <h1 className="text-brand-deep font-black text-lg tracking-wider uppercase">
-              {room ? `Phong #${room.id}` : eventName}
+              {room ? `Phòng #${room.id}` : eventName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={currentStatus} />
               {isViewer && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-gold/20 text-brand-gold">
-                  Khan gia
+                  Khán giả
                 </span>
               )}
             </div>
@@ -393,7 +393,7 @@ export default function EventPage() {
               </p>
             )}
             {viewerCount > 0 && (
-              <p className="text-brand-deep/35 text-[10px] font-light">👁 {viewerCount} khan gia</p>
+              <p className="text-brand-deep/35 text-[10px] font-light">👁 {viewerCount} khán giả</p>
             )}
             {flowerBalance > 0 && (
               <p className="text-brand-gold text-xs font-semibold">🌸 x{flowerBalance}</p>
@@ -415,7 +415,7 @@ export default function EventPage() {
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 1 }}
               >
-                Dang chuyen phong...
+                Đang chuyển phòng...
               </motion.p>
             </motion.div>
           )}
@@ -454,8 +454,8 @@ export default function EventPage() {
         ) : isViewer ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="text-5xl mb-4 animate-breathe">🌸</div>
-            <p className="text-brand-deep/50 font-light">Dang cho phong tiep theo...</p>
-            <p className="text-brand-deep/30 text-xs mt-1">Se tu dong hien khi co phong moi</p>
+            <p className="text-brand-deep/50 font-light">Đang chờ phòng tiếp theo...</p>
+            <p className="text-brand-deep/30 text-xs mt-1">Sẽ tự động hiện khi có phòng mới</p>
           </div>
         ) : null}
 
@@ -473,7 +473,7 @@ export default function EventPage() {
                   {myResult.tier === "FIRST" ? "🌟" : myResult.tier === "SECOND" ? "✨" : myResult.tier === "THIRD" ? "🌸" : "💐"}
                 </div>
                 <p className="text-brand-deep font-bold">{myResult.label}</p>
-                <p className="text-brand-deep/40 text-xs mt-1 font-light">Ban se thanh khan gia trong giay lat...</p>
+                <p className="text-brand-deep/40 text-xs mt-1 font-light">Bạn sẽ thành khán giả trong giây lát...</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -481,7 +481,7 @@ export default function EventPage() {
           {/* Viewer: my previous result mini badge */}
           {isViewer && myResult && (
             <div className="glass px-3 py-2 flex items-center justify-between">
-              <span className="text-brand-deep/50 text-xs font-light">Ket qua cua ban:</span>
+              <span className="text-brand-deep/50 text-xs font-light">Kết quả của bạn:</span>
               <span className="text-brand-gold text-sm font-bold">
                 {myResult.tier === "FIRST" ? "🌟" : myResult.tier === "SECOND" ? "✨" : myResult.tier === "THIRD" ? "🌸" : "💐"} {myResult.label}
               </span>
@@ -493,20 +493,20 @@ export default function EventPage() {
             <div className="space-y-3">
               {!isViewer && mySlot && (currentStatus === "WAITING" || currentStatus === "CREATED") && (
                 <div className="glass px-4 py-3 text-center">
-                  <p className="text-brand-hot font-semibold text-sm">Ban da vao phong — Slot #{mySlot}</p>
-                  <p className="text-brand-deep/35 text-xs mt-0.5 font-light">Dang cho phong bat dau...</p>
+                  <p className="text-brand-hot font-semibold text-sm">Bạn đã vào phòng — Slot #{mySlot}</p>
+                  <p className="text-brand-deep/35 text-xs mt-0.5 font-light">Đang chờ phòng bắt đầu...</p>
                 </div>
               )}
               {isViewer && (currentStatus === "WAITING" || currentStatus === "CREATED") && (
                 <div className="glass px-4 py-3 text-center">
-                  <p className="text-brand-gold font-semibold text-sm">Dang xem phong #{room.id}</p>
+                  <p className="text-brand-gold font-semibold text-sm">Đang xem phòng #{room.id}</p>
                   <p className="text-brand-deep/35 text-xs mt-0.5 font-light">
-                    Tra loi quiz de nhan loa va hoa! Bam vao card de gui hoa 🌸
+                    Trả lời quiz để nhận loa và hoa! Bấm vào card để gửi hoa 🌸
                   </p>
                 </div>
               )}
               <MiniQuiz />
-              <div className="glass overflow-hidden" style={{ maxHeight: 300 }}>
+              <div className="glass overflow-hidden max-h-[200px] sm:max-h-[300px]">
                 <div className="px-3 pt-2 pb-1 border-b border-brand-hot/[0.08]">
                   <p className="text-brand-hot text-xs font-semibold uppercase tracking-widest">Chat</p>
                 </div>
@@ -523,7 +523,7 @@ export default function EventPage() {
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
               >
-                Dang quay thuong...
+                Đang quay thưởng...
               </motion.p>
             </div>
           )}
@@ -531,15 +531,15 @@ export default function EventPage() {
           {/* Locked status */}
           {currentStatus === "LOCKED" && (
             <div className="glass px-4 py-3 text-center">
-              <p className="text-brand-deep font-semibold text-sm">Phong da khoa — Sap bat dau dem nguoc...</p>
+              <p className="text-brand-deep font-semibold text-sm">Phòng đã khoá — Sắp bắt đầu đếm ngược...</p>
             </div>
           )}
 
           {/* Viewer: room done → waiting for next */}
           {isViewer && currentStatus === "DONE" && (
             <div className="glass px-4 py-3 text-center space-y-2">
-              <p className="text-brand-deep font-semibold text-sm">Phong da quay xong!</p>
-              <p className="text-brand-deep/35 text-xs font-light">Se tu dong chuyen sang phong tiep theo...</p>
+              <p className="text-brand-deep font-semibold text-sm">Phòng đã quay xong!</p>
+              <p className="text-brand-deep/35 text-xs font-light">Sẽ tự động chuyển sang phòng tiếp theo...</p>
             </div>
           )}
 
@@ -556,13 +556,13 @@ export default function EventPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; color: string }> = {
-    CREATED:   { label: "Chuan bi",     color: "bg-brand-deep/10 text-brand-deep/50" },
-    WAITING:   { label: "Dang cho",     color: "bg-status-waiting/20 text-status-waiting" },
-    LOCKED:    { label: "Da khoa",      color: "bg-status-locked/20 text-status-locked" },
-    COUNTDOWN: { label: "Dem nguoc",    color: "bg-brand-gold/20 text-brand-gold" },
-    SPINNING:  { label: "Dang quay",    color: "bg-status-spinning/20 text-status-spinning animate-pulse" },
-    REVEAL:    { label: "Mo thuong",    color: "bg-brand-rose/20 text-brand-rose" },
-    DONE:      { label: "Hoan thanh",   color: "bg-status-done/20 text-status-done" },
+    CREATED:   { label: "Chuẩn bị",     color: "bg-brand-deep/10 text-brand-deep/50" },
+    WAITING:   { label: "Đang chờ",     color: "bg-status-waiting/20 text-status-waiting" },
+    LOCKED:    { label: "Đã khoá",      color: "bg-status-locked/20 text-status-locked" },
+    COUNTDOWN: { label: "Đếm ngược",    color: "bg-brand-gold/20 text-brand-gold" },
+    SPINNING:  { label: "Đang quay",    color: "bg-status-spinning/20 text-status-spinning animate-pulse" },
+    REVEAL:    { label: "Mở thưởng",    color: "bg-brand-rose/20 text-brand-rose" },
+    DONE:      { label: "Hoàn thành",   color: "bg-status-done/20 text-status-done" },
   };
   const c = config[status] || config.WAITING;
   return (

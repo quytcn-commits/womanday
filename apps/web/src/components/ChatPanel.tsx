@@ -284,7 +284,7 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={megaphoneMode ? (megaphoneMode === "big" ? "📣 Tin nhan loa lon..." : "📢 Tin nhan loa nho...") : "Go tin nhan... (1 tin/3s)"}
+            placeholder={megaphoneMode ? (megaphoneMode === "big" ? "📣 Tin nhắn loa lớn..." : "📢 Tin nhắn loa nhỏ...") : "Gõ tin nhắn... (1 tin/3s)"}
             maxLength={200}
             className={`flex-1 bg-white/70 border rounded-xl px-3 py-2 text-brand-deep text-sm placeholder-brand-deep/25 focus:outline-none transition-all duration-300 font-light ${
               megaphoneMode

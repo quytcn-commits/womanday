@@ -99,8 +99,8 @@ export default function GalleryPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-brand-deep font-bold text-lg">Gallery Thiep 8/3</h1>
-            <p className="text-brand-deep/40 text-xs font-light">Tuong thiep cua tat ca chi em</p>
+            <h1 className="text-brand-deep font-bold text-lg">Gallery Thiệp 8/3</h1>
+            <p className="text-brand-deep/40 text-xs font-light">Tường thiệp của tất cả chị em</p>
           </div>
         </div>
 
@@ -115,7 +115,7 @@ export default function GalleryPage() {
               border: selectedDept === "all" ? "1px solid rgba(232,96,122,0.3)" : "1px solid transparent",
             }}
           >
-            Tat ca
+            Tất cả
           </button>
           {departments.map((d) => (
             <button
@@ -136,7 +136,7 @@ export default function GalleryPage() {
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-12">
-            <p className="text-brand-deep/40 animate-pulse font-light">Dang tai...</p>
+            <p className="text-brand-deep/40 animate-pulse font-light">Đang tải...</p>
           </div>
         )}
 
@@ -154,7 +154,7 @@ export default function GalleryPage() {
         {!loading && cards.length === 0 && (
           <div className="text-center py-12">
             <div className="text-4xl mb-3">🖼️</div>
-            <p className="text-brand-deep/40 font-light">Chua co thiep nao</p>
+            <p className="text-brand-deep/40 font-light">Chưa có thiệp nào</p>
           </div>
         )}
 
@@ -166,7 +166,7 @@ export default function GalleryPage() {
               disabled={loadingMore}
               className="px-6 py-2.5 rounded-2xl text-sm font-semibold text-brand-hot bg-brand-hot/10 hover:bg-brand-hot/20 transition-colors disabled:opacity-50"
             >
-              {loadingMore ? "Dang tai..." : "Xem them"}
+              {loadingMore ? "Đang tải..." : "Xem thêm"}
             </button>
           </div>
         )}

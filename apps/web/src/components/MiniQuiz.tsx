@@ -154,21 +154,21 @@ export default function MiniQuiz() {
         {/* Balance header */}
         <MegaphoneBalanceBar balance={balance} />
         <div className="text-3xl mb-2">🎉</div>
-        <p className="text-brand-deep font-bold text-sm">Hoan thanh Quiz!</p>
+        <p className="text-brand-deep font-bold text-sm">Hoàn thành Quiz!</p>
         <p className="text-brand-hot font-black text-xl mt-1">
           {correctCount}/{quizQuestions.length}
         </p>
-        <p className="text-brand-deep/40 text-xs mt-1 font-light">cau tra loi dung</p>
+        <p className="text-brand-deep/40 text-xs mt-1 font-light">câu trả lời đúng</p>
         {correctCount > 0 && (
           <p className="text-brand-gold text-xs mt-2 font-medium">
-            Ban da nhan duoc loa de chat noi bat!
+            Bạn đã nhận được loa để chat nổi bật!
           </p>
         )}
         <button
           onClick={handleReset}
           className="mt-3 text-brand-hot text-xs font-semibold hover:text-brand-hot/70 transition-colors"
         >
-          Choi lai
+          Chơi lại
         </button>
       </div>
     );
