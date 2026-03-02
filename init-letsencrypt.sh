@@ -34,7 +34,7 @@ $COMPOSE run --rm --entrypoint "" certbot sh -c "
 
 # Step 4: Request real certificate from Let's Encrypt
 echo "🌐 Requesting real certificate from Let's Encrypt..."
-$COMPOSE run --rm certbot certonly \
+$COMPOSE run --rm --entrypoint "" certbot certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "$EMAIL" \
