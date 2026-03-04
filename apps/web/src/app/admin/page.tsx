@@ -175,9 +175,39 @@ export default function AdminPage() {
     } catch {}
   }
 
+  async function downloadCsv(apiPath: string, fallbackName: string) {
+    try {
+      const token = localStorage.getItem("womanday_token");
+      const res = await fetch(getApiUrl(apiPath), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Download thất bại");
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      const disposition = res.headers.get("Content-Disposition");
+      const match = disposition?.match(/filename="?([^"]+)"?/);
+      a.download = match?.[1] || fallbackName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch (e: any) {
+      setMsg("Download lỗi: " + (e.message || "Lỗi"));
+    }
+  }
+
   async function exportCSV(round?: number) {
     const url = round ? `/api/v1/admin/export/results?round=${round}` : "/api/v1/admin/export/results";
-    window.open(getApiUrl(url), "_blank");
+    await downloadCsv(url, "results.csv");
+  }
+
+  function exportEmployees() {
+    downloadCsv("/api/v1/admin/employees/export", "nhan_vien.csv");
+  }
+
+  function exportFullReport() {
+    downloadCsv("/api/v1/admin/employees/export-full", "bao_cao_day_du.csv");
   }
 
   async function handleTemplateUpload(slotId: number, e: React.ChangeEvent<HTMLInputElement>) {
@@ -543,6 +573,7 @@ export default function AdminPage() {
           onSave={saveEmployee} onDelete={deleteEmployee} onReset={resetEmployee}
           onResetAll={resetAllEmployees} onResetAllBlur={() => setEmpResetAllConfirm(0)}
           onToggleDetail={toggleEmployeeDetail} onGrant={grantItem}
+          onImportCsv={handleImportCsv} onExportEmployees={exportEmployees} onExportFullReport={exportFullReport}
           getApiUrl={getApiUrl}
         />}
       </div>
@@ -1048,7 +1079,7 @@ function TabData({ history, historyLoaded, onExportCSV, onImportCsv }: {
    TAB: Nhân sự
    ════════════════════════════════════════════════════════════ */
 
-function TabEmployees({ employees, total, page, totalPages, departments, search, deptFilter, loaded, editing, adding, form, saving, resetAllConfirm, detailId, detail, detailLoading, onSearchChange, onDeptFilterChange, onSearch, onPageChange, onStartAdd, onStartEdit, onCancelForm, onFormChange, onSave, onDelete, onReset, onResetAll, onResetAllBlur, onToggleDetail, onGrant, getApiUrl }: {
+function TabEmployees({ employees, total, page, totalPages, departments, search, deptFilter, loaded, editing, adding, form, saving, resetAllConfirm, detailId, detail, detailLoading, onSearchChange, onDeptFilterChange, onSearch, onPageChange, onStartAdd, onStartEdit, onCancelForm, onFormChange, onSave, onDelete, onReset, onResetAll, onResetAllBlur, onToggleDetail, onGrant, onImportCsv, onExportEmployees, onExportFullReport, getApiUrl }: {
   employees: EmployeeRow[]; total: number; page: number; totalPages: number;
   departments: string[]; search: string; deptFilter: string;
   loaded: boolean; editing: EmployeeRow | null; adding: boolean;
@@ -1062,6 +1093,8 @@ function TabEmployees({ employees, total, page, totalPages, departments, search,
   onSave: () => void; onDelete: (emp: EmployeeRow) => void; onReset: (emp: EmployeeRow) => void;
   onResetAll: () => void; onResetAllBlur: () => void;
   onToggleDetail: (id: string) => void; onGrant: (id: string, type: string, amount: number) => void;
+  onImportCsv: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportEmployees: () => void; onExportFullReport: () => void;
   getApiUrl: (p: string) => string;
 }) {
   function formatDob(iso: string) {
@@ -1121,6 +1154,44 @@ function TabEmployees({ employees, total, page, totalPages, departments, search,
           Tổng: <span className="font-semibold text-brand-deep/60">{total}</span> nhân viên
           {totalPages > 1 && <> | Trang {page}/{totalPages}</>}
         </p>
+      </div>
+
+      {/* Import / Export */}
+      <div className="glass p-4">
+        <p className="text-brand-deep/50 text-[10px] font-semibold uppercase tracking-widest mb-3">
+          Import / Export
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <label className="flex flex-col items-center gap-1.5 p-4 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all cursor-pointer">
+            <span className="text-2xl">📤</span>
+            <span className="text-xs font-semibold text-brand-deep/70">Import CSV</span>
+            <span className="text-[10px] text-brand-deep/30">Thêm/cập nhật NV</span>
+            <input type="file" accept=".csv" className="hidden" onChange={onImportCsv} />
+          </label>
+          <button
+            onClick={onExportEmployees}
+            className="flex flex-col items-center gap-1.5 p-4 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all"
+          >
+            <span className="text-2xl">📥</span>
+            <span className="text-xs font-semibold text-brand-deep/70">Export danh sách</span>
+            <span className="text-[10px] text-brand-deep/30">CSV nhân viên</span>
+          </button>
+          <button
+            onClick={onExportFullReport}
+            className="flex flex-col items-center gap-1.5 p-4 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all"
+          >
+            <span className="text-2xl">📊</span>
+            <span className="text-xs font-semibold text-brand-deep/70">Báo cáo đầy đủ</span>
+            <span className="text-[10px] text-brand-deep/30">NV + giải + quiz</span>
+          </button>
+          <div className="flex flex-col items-center gap-1.5 p-4 rounded-xl bg-white/30 border border-brand-deep/5">
+            <span className="text-2xl">📋</span>
+            <span className="text-xs font-semibold text-brand-deep/40">Format CSV</span>
+            <code className="text-[9px] text-brand-deep/35 text-center leading-relaxed">
+              cccd,dob,name,<br />position,dept
+            </code>
+          </div>
+        </div>
       </div>
 
       {/* Add/Edit Form */}

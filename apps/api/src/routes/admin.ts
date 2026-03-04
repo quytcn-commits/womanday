@@ -342,8 +342,9 @@ export async function adminRoutes(app: FastifyInstance) {
       l.spunAt.toISOString(),
     ]);
 
-    const header = "cccd,name,dept,position,tier,value,room_id,spun_at\n";
-    const csv = header + rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const BOM = "\uFEFF";
+    const header = "cccd,name,dept,position,tier,value,room_id,spun_at";
+    const csv = BOM + header + "\n" + rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
 
     return reply
       .header("Content-Type", "text/csv; charset=utf-8")
@@ -460,6 +461,104 @@ export async function adminRoutes(app: FastifyInstance) {
       });
     });
     return reply.send({ success: true, message: "Đã reset tất cả nhân viên" });
+  });
+
+  // GET /api/v1/admin/employees/export — export employee list as CSV
+  app.get("/employees/export", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
+    const { q, dept } = req.query as { q?: string; dept?: string };
+    const where: any = {};
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { cccd: { contains: q } },
+      ];
+    }
+    if (dept) where.dept = dept;
+
+    const employees = await prisma.employee.findMany({
+      where,
+      select: {
+        cccd: true, name: true, dob: true, dept: true, position: true,
+        role: true, hasSpun: true, lastLoginAt: true, createdAt: true,
+      },
+      orderBy: { name: "asc" },
+    });
+
+    function fmtDate(d: Date): string {
+      return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+    }
+    function esc(v: string): string { return `"${v.replace(/"/g, '""')}"`; }
+
+    const BOM = "\uFEFF";
+    const header = "CCCD,Ho_ten,Ngay_sinh,Phong_ban,Chuc_vu,Role,Da_quay,Dang_nhap_cuoi,Ngay_tao";
+    const rows = employees.map((e) =>
+      [e.cccd, e.name, fmtDate(e.dob), e.dept, e.position, e.role,
+       e.hasSpun ? "Co" : "Khong",
+       e.lastLoginAt ? e.lastLoginAt.toISOString() : "",
+       e.createdAt.toISOString(),
+      ].map(esc).join(",")
+    );
+
+    const csv = BOM + header + "\n" + rows.join("\n");
+    return reply
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="nhan_vien_${new Date().toISOString().slice(0, 10)}.csv"`)
+      .send(csv);
+  });
+
+  // GET /api/v1/admin/employees/export-full — full report: employees + prizes + quiz
+  app.get("/employees/export-full", { preHandler: [app.authenticate, app.adminOnly] }, async (_req, reply) => {
+    const eventRound = await getCurrentEventRound();
+
+    const employees = await prisma.employee.findMany({
+      where: { role: "user" },
+      select: {
+        cccd: true, name: true, dob: true, dept: true, position: true,
+        hasSpun: true, lastLoginAt: true,
+        spinLogs: {
+          where: { eventRound },
+          select: { tier: true, value: true, roomId: true, spunAt: true },
+          take: 1,
+        },
+        quizAnswers: {
+          select: { isCorrect: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    function fmtDate(d: Date): string {
+      return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+    }
+    function esc(v: string): string { return `"${v.replace(/"/g, '""')}"`; }
+
+    const TIER_LABELS: Record<string, string> = {
+      FIRST: "Giai Nhat", SECOND: "Giai Nhi", THIRD: "Giai Ba", CONS: "Giai KK",
+    };
+
+    const BOM = "\uFEFF";
+    const header = "CCCD,Ho_ten,Ngay_sinh,Phong_ban,Chuc_vu,Da_quay,Giai_thuong,Gia_tri_VND,Phong_quay,Thoi_gian_quay,Quiz_dung,Quiz_tong,Dang_nhap_cuoi";
+    const rows = employees.map((e) => {
+      const spin = e.spinLogs[0] || null;
+      const quizCorrect = e.quizAnswers.filter((a) => a.isCorrect).length;
+      const quizTotal = e.quizAnswers.length;
+      return [
+        e.cccd, e.name, fmtDate(e.dob), e.dept, e.position,
+        e.hasSpun ? "Co" : "Khong",
+        spin ? (TIER_LABELS[spin.tier] || spin.tier) : "",
+        spin ? String(spin.value) : "",
+        spin ? spin.roomId : "",
+        spin ? spin.spunAt.toISOString() : "",
+        String(quizCorrect), String(quizTotal),
+        e.lastLoginAt ? e.lastLoginAt.toISOString() : "",
+      ].map(esc).join(",");
+    });
+
+    const csv = BOM + header + "\n" + rows.join("\n");
+    return reply
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="bao_cao_day_du_round${eventRound}_${new Date().toISOString().slice(0, 10)}.csv"`)
+      .send(csv);
   });
 
   // PUT /api/v1/admin/employees/:id — update employee
