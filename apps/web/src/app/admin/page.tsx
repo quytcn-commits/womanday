@@ -759,6 +759,111 @@ function TabEvent({ stats, rooms, loading, resetConfirm, resetting, eventName, e
           </div>
         )}
       </div>
+
+      {/* Test Effects */}
+      <TestEffectsPanel />
+    </div>
+  );
+}
+
+function TestEffectsPanel() {
+  const [testing, setTesting] = useState("");
+
+  async function fireTest(type: string, body: object) {
+    setTesting(type);
+    try {
+      const token = localStorage.getItem("womanday_token");
+      await fetch(
+        (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001") + `/api/v1/admin/test/${type}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        }
+      );
+    } catch {}
+    setTimeout(() => setTesting(""), 1000);
+  }
+
+  return (
+    <div className="glass p-4">
+      <p className="text-brand-deep/50 text-[10px] font-semibold uppercase tracking-widest mb-3">
+        Test Hiệu Ứng (mở /event ở tab khác để xem)
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button
+          onClick={() => fireTest("megaphone", { type: "small", count: 1 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">📢</span>
+          <span className="text-xs font-semibold text-brand-deep/70">1 Loa Nhỏ</span>
+        </button>
+        <button
+          onClick={() => fireTest("megaphone", { type: "small", count: 10 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">📢</span>
+          <span className="text-xs font-semibold text-brand-deep/70">10 Loa Nhỏ</span>
+          <span className="text-[10px] text-brand-deep/30">Spam test</span>
+        </button>
+        <button
+          onClick={() => fireTest("megaphone", { type: "big", count: 1 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">📣</span>
+          <span className="text-xs font-semibold text-brand-deep/70">1 Loa Lớn</span>
+        </button>
+        <button
+          onClick={() => fireTest("megaphone", { type: "big", count: 5 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">📣</span>
+          <span className="text-xs font-semibold text-brand-deep/70">5 Loa Lớn</span>
+          <span className="text-[10px] text-brand-deep/30">Spam test</span>
+        </button>
+        <button
+          onClick={() => fireTest("flower", { count: 5 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">🌸</span>
+          <span className="text-xs font-semibold text-brand-deep/70">5 Hoa</span>
+        </button>
+        <button
+          onClick={() => fireTest("flower", { count: 15 })}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/50 border border-brand-hot/10 hover:border-brand-hot/25 hover:bg-white/70 transition-all disabled:opacity-40"
+        >
+          <span className="text-2xl">🌸</span>
+          <span className="text-xs font-semibold text-brand-deep/70">15 Hoa</span>
+          <span className="text-[10px] text-brand-deep/30">Spam test</span>
+        </button>
+        <button
+          onClick={async () => {
+            setTesting("all");
+            fireTest("megaphone", { type: "small", count: 8 });
+            setTimeout(() => fireTest("megaphone", { type: "big", count: 3 }), 500);
+            setTimeout(() => fireTest("flower", { count: 10 }), 1000);
+            setTimeout(() => setTesting(""), 3000);
+          }}
+          disabled={!!testing}
+          className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-brand-hot/20 to-brand-gold/20 border border-brand-hot/20 hover:border-brand-hot/40 transition-all disabled:opacity-40 col-span-2 sm:col-span-1"
+        >
+          <span className="text-2xl">🎆</span>
+          <span className="text-xs font-semibold text-brand-deep/70">Full Combo</span>
+          <span className="text-[10px] text-brand-deep/30">8 nhỏ + 3 lớn + 10 hoa</span>
+        </button>
+      </div>
+      {testing && (
+        <p className="text-brand-hot text-xs mt-2 animate-pulse">Đang gửi test events...</p>
+      )}
     </div>
   );
 }

@@ -879,4 +879,76 @@ export async function adminRoutes(app: FastifyInstance) {
       console.log(`[RegenResults] Done: ${done}/${spunEmployees.length} result images`);
     });
   });
+
+  // ── Test endpoints (emit fake socket events) ──────────────
+  const TEST_NAMES = [
+    { name: "Nguyễn Thị Mai", dept: "Kế Toán" },
+    { name: "Trần Thị Hồng", dept: "Nhân Sự" },
+    { name: "Lê Thị Lan", dept: "Marketing" },
+    { name: "Phạm Thị Hoa", dept: "Kinh Doanh" },
+    { name: "Hoàng Thị Linh", dept: "IT" },
+    { name: "Vũ Thị Trang", dept: "Kế Toán" },
+    { name: "Đỗ Thị Ngọc", dept: "Nhân Sự" },
+    { name: "Bùi Thị Thảo", dept: "Marketing" },
+  ];
+  const TEST_MESSAGES = [
+    "Chúc mừng ngày 8/3! 🌸",
+    "Happy Women's Day! 💖",
+    "Chúc chị em vui vẻ, hạnh phúc!",
+    "8/3 yêu thương ❤️",
+    "Phụ nữ là để yêu thương 🌷",
+    "Chúc ngày Quốc tế Phụ nữ vui vẻ!",
+    "Xinh đẹp, giỏi giang, tự tin! ✨",
+    "Happy Women's Day các chị em! 🎉",
+  ];
+
+  // POST /api/v1/admin/test/megaphone — emit test megaphone event
+  app.post("/test/megaphone", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
+    const { type, count } = req.body as { type?: "small" | "big"; count?: number };
+    const megaphoneType = type || "small";
+    const emitCount = Math.min(count || 1, 20);
+    const io = getIo();
+
+    for (let i = 0; i < emitCount; i++) {
+      const user = TEST_NAMES[i % TEST_NAMES.length];
+      const payload = {
+        event: "megaphone_announcement",
+        id: `test-${Date.now()}-${i}`,
+        megaphoneType,
+        user: { userId: `test-${i}`, name: user.name, dept: user.dept },
+        message: TEST_MESSAGES[i % TEST_MESSAGES.length],
+        createdAt: new Date().toISOString(),
+      };
+      // Stagger emissions slightly for realism
+      setTimeout(() => {
+        io.emit("megaphone_announcement", payload);
+        io.to("wall").emit("megaphone_announcement", payload);
+      }, i * 200);
+    }
+
+    return reply.send({ success: true, message: `Đã gửi ${emitCount} test ${megaphoneType} megaphone` });
+  });
+
+  // POST /api/v1/admin/test/flower — emit test flower event
+  app.post("/test/flower", { preHandler: [app.authenticate, app.adminOnly] }, async (req, reply) => {
+    const { count } = req.body as { count?: number };
+    const emitCount = Math.min(count || 1, 20);
+    const io = getIo();
+
+    for (let i = 0; i < emitCount; i++) {
+      const user = TEST_NAMES[i % TEST_NAMES.length];
+      const payload = {
+        roomId: "test-room",
+        slotIndex: i % 12,
+        fromUser: { name: user.name, dept: user.dept },
+        totalFlowers: i + 1,
+      };
+      setTimeout(() => {
+        io.emit("flower_received", payload);
+        io.to("wall").emit("flower_received", payload);
+      }, i * 300);
+    }
+
+    return reply.send({ success: true, message: `Đã gửi ${emitCount} test flowers` });
+  });
 }
