@@ -38,7 +38,7 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
       .catch(() => {});
   }, []);
 
-  // Listen for megaphone_balance updates from socket
+  // Listen for megaphone_balance updates from socket (after using megaphone)
   useEffect(() => {
     if (!socket) return;
     const handleBalance = (data: { megaphoneSmall: number; megaphoneBig: number }) => {
@@ -47,6 +47,18 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
     socket.on("megaphone_balance", handleBalance);
     return () => { socket.off("megaphone_balance", handleBalance); };
   }, [socket]);
+
+  // Listen for admin grant updates (real-time balance push)
+  useEffect(() => {
+    if (!socket || !myUserId) return;
+    const handleGrantUpdate = (data: { userId: string; megaphoneSmall: number; megaphoneBig: number }) => {
+      if (data.userId === myUserId) {
+        setMegaBalance({ small: data.megaphoneSmall, big: data.megaphoneBig });
+      }
+    };
+    socket.on("megaphone_balance_update", handleGrantUpdate);
+    return () => { socket.off("megaphone_balance_update", handleGrantUpdate); };
+  }, [socket, myUserId]);
 
   useEffect(() => {
     const url = roomId

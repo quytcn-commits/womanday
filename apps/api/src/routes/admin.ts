@@ -14,6 +14,7 @@ import { deleteMessage, muteUser } from "../services/chat.service";
 import { generateCardImage, generateResultImage, getGreetingsList, GREETINGS_FILE } from "../services/image.service";
 import prisma from "../lib/prisma";
 import { getCurrentEventRound } from "../lib/event-round";
+import { getIo } from "../websocket";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "./uploads";
 
@@ -699,6 +700,17 @@ export async function adminRoutes(app: FastifyInstance) {
       data: { [type]: { increment: amount } },
       select: { megaphoneSmall: true, megaphoneBig: true, flowerBalance: true },
     });
+
+    // Emit real-time balance update to the user via socket
+    try {
+      const io = getIo();
+      io.emit("megaphone_balance_update", {
+        userId: id,
+        megaphoneSmall: updated.megaphoneSmall,
+        megaphoneBig: updated.megaphoneBig,
+        flowerBalance: updated.flowerBalance,
+      });
+    } catch {}
 
     const labels: Record<string, string> = { megaphoneSmall: "loa nhỏ", megaphoneBig: "loa lớn", flowerBalance: "hoa" };
     return reply.send({
