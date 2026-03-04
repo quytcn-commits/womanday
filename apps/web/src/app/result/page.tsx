@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiUrl } from "@/lib/api";
 import { getUser, getToken } from "@/lib/auth";
 import { getSocket } from "@/lib/socket";
 
@@ -141,17 +141,23 @@ export default function ResultPage() {
     return () => { socket.off("image_ready"); };
   }, [router, user]);
 
+  const getResultImageFullUrl = useCallback(() => {
+    if (!data?.resultImageUrl) return null;
+    return getApiUrl(data.resultImageUrl);
+  }, [data]);
+
   const handleShare = useCallback(async () => {
-    if (!data?.resultImageUrl) return;
+    const imgUrl = getResultImageFullUrl();
+    if (!imgUrl) return;
     setSharing(true);
     try {
       if (navigator.share) {
-        const res = await fetch(data.resultImageUrl);
+        const res = await fetch(imgUrl);
         const blob = await res.blob();
         const file = new File([blob], "womanday_result.jpg", { type: "image/jpeg" });
         await navigator.share({
           title: "Chúc Mừng 8/3",
-          text: data.caption || "Chúc mừng Ngày Phụ Nữ Quốc Tế!",
+          text: data?.caption || "Chúc mừng Ngày Phụ Nữ Quốc Tế!",
           files: [file],
         });
       } else {
@@ -160,12 +166,13 @@ export default function ResultPage() {
     } catch { /* cancelled */ } finally {
       setSharing(false);
     }
-  }, [data]);
+  }, [data, getResultImageFullUrl]);
 
   async function handleDownload() {
-    if (!data?.resultImageUrl) return;
+    const imgUrl = getResultImageFullUrl();
+    if (!imgUrl) return;
     try {
-      const res = await fetch(data.resultImageUrl);
+      const res = await fetch(imgUrl);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -174,7 +181,7 @@ export default function ResultPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      window.open(data.resultImageUrl, "_blank");
+      window.open(imgUrl, "_blank");
     }
   }
 
@@ -264,7 +271,7 @@ export default function ResultPage() {
               </div>
             ) : data?.resultImageUrl ? (
               <img
-                src={data.resultImageUrl}
+                src={getApiUrl(data.resultImageUrl)}
                 alt="Ảnh kết quả"
                 className="w-full rounded-xl"
                 onError={(e) => {

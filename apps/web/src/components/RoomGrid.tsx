@@ -220,31 +220,48 @@ export default function RoomGrid({ participants, status, revealedSlots, results,
               <FlowerCornerMini position="br" color={theme.color} variant={theme.variant} />
 
               {hasUser ? (
-                <div className="flex flex-col items-center p-1 w-full h-full relative z-[1]">
-                  {/* Selfie with themed ring */}
-                  <div
-                    className="w-9 h-9 rounded-full overflow-hidden mb-0.5 flex-shrink-0"
-                    style={{ border: `1.5px solid ${theme.color}40` }}
-                  >
-                    {slot.selfieUrl ? (
-                      <img src={getApiUrl(slot.selfieUrl)} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-[#FFF3E4] flex items-center justify-center text-sm">{theme.emoji}</div>
+                slot.cardImageUrl ? (
+                  /* Card image mode (compact) — show card thumbnail */
+                  <div className="absolute inset-0 z-[1]">
+                    <img
+                      src={getApiUrl(slot.cardImageUrl)}
+                      alt={slot.name || ""}
+                      className="w-full h-full object-cover rounded-[14px]"
+                    />
+                    {isRevealed && result && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[14px]">
+                        <span className="text-lg">{TIER_EMOJI[result.tier]}</span>
+                      </div>
+                    )}
+                    {flowerCounts && flowerCounts[slot.slotIndex] > 0 && !isRevealed && (
+                      <span className="absolute bottom-0.5 right-1 text-[7px] text-white font-semibold drop-shadow-md">🌸{flowerCounts[slot.slotIndex]}</span>
                     )}
                   </div>
-                  <p className="text-[8px] text-brand-deep font-semibold text-center truncate w-full">
-                    {slot.name?.split(" ").slice(-1)[0]}
-                  </p>
-                  {/* Flower badge */}
-                  <span className="text-[8px] leading-none">{theme.emoji}</span>
-                  {isRevealed && result && (
-                    <span className="text-[9px]">{TIER_EMOJI[result.tier]}</span>
-                  )}
-                  {/* Flower count badge (compact) */}
-                  {flowerCounts && flowerCounts[slot.slotIndex] > 0 && !isRevealed && (
-                    <span className="text-[7px] text-brand-gold font-semibold">🌸 {flowerCounts[slot.slotIndex]}</span>
-                  )}
-                </div>
+                ) : (
+                  /* Selfie mode (compact) — original display */
+                  <div className="flex flex-col items-center p-1 w-full h-full relative z-[1]">
+                    <div
+                      className="w-9 h-9 rounded-full overflow-hidden mb-0.5 flex-shrink-0"
+                      style={{ border: `1.5px solid ${theme.color}40` }}
+                    >
+                      {slot.selfieUrl ? (
+                        <img src={getApiUrl(slot.selfieUrl)} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#FFF3E4] flex items-center justify-center text-sm">{theme.emoji}</div>
+                      )}
+                    </div>
+                    <p className="text-[8px] text-brand-deep font-semibold text-center truncate w-full">
+                      {slot.name?.split(" ").slice(-1)[0]}
+                    </p>
+                    <span className="text-[8px] leading-none">{theme.emoji}</span>
+                    {isRevealed && result && (
+                      <span className="text-[9px]">{TIER_EMOJI[result.tier]}</span>
+                    )}
+                    {flowerCounts && flowerCounts[slot.slotIndex] > 0 && !isRevealed && (
+                      <span className="text-[7px] text-brand-gold font-semibold">🌸 {flowerCounts[slot.slotIndex]}</span>
+                    )}
+                  </div>
+                )
               ) : (
                 /* Empty slot — flower identity */
                 <div className="flex flex-col items-center justify-center w-full h-full relative z-[1] gap-0.5">
@@ -335,6 +352,10 @@ export default function RoomGrid({ participants, status, revealedSlots, results,
 
 // ══════════════════════════════════════════════════════════
 // Champion Card — full mode with flower theme
+// Supports 3 display modes:
+//   1. Card image (cardImageUrl) → full tarot card display
+//   2. Selfie only → selfie + corners + name bar
+//   3. Empty → flower identity placeholder
 // ══════════════════════════════════════════════════════════
 
 function ChampionCard({
@@ -351,10 +372,103 @@ function ChampionCard({
   canSendFlower?: boolean;
 }) {
   const hasUser = slot.userId !== null;
+  const hasCard = hasUser && !!slot.cardImageUrl;
   const tierBg = isRevealed && result ? TIER_BG[result.tier] : "";
   const theme = getTheme(slot.slotIndex);
   const canTapFlower = hasUser && canSendFlower && onSendFlower && !isRevealed;
 
+  // ── MODE 1: Card Image — full tarot-style card display ────
+  if (hasCard) {
+    return (
+      <motion.div
+        className={`champion-card active aspect-[3/4] ${canTapFlower ? "cursor-pointer" : ""}`}
+        style={{ borderColor: "#C4A478", background: "#1E1230" }}
+        animate={isSpinning && !isRevealed ? {
+          boxShadow: [
+            "0 4px 20px rgba(196,164,120,0.20), 0 0 0 rgba(232,96,122,0)",
+            "0 4px 32px rgba(196,164,120,0.45), 0 0 20px rgba(232,96,122,0.12)",
+            "0 4px 20px rgba(196,164,120,0.20), 0 0 0 rgba(232,96,122,0)",
+          ],
+        } : {}}
+        transition={{ repeat: Infinity, duration: 1.5 }}
+        onClick={canTapFlower ? () => onSendFlower(slot.slotIndex) : undefined}
+        whileTap={canTapFlower ? { scale: 0.95 } : undefined}
+      >
+        {/* Card image — fills slot, preserving card's own ornate border */}
+        <img
+          src={getApiUrl(slot.cardImageUrl!)}
+          alt={slot.name || ""}
+          className="absolute inset-[2px] w-[calc(100%-4px)] h-[calc(100%-4px)] object-cover rounded-[16px]"
+        />
+
+        {/* Spinning shimmer */}
+        <AnimatePresence>
+          {isSpinning && !isRevealed && (
+            <motion.div
+              className="absolute inset-[2px] rounded-[16px] z-[2]"
+              animate={{ opacity: [0, 0.2, 0] }}
+              transition={{ repeat: Infinity, duration: 1.2 }}
+              style={{ background: "linear-gradient(180deg, rgba(196,164,120,0.08) 0%, rgba(232,96,122,0.12) 100%)" }}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Prize reveal overlay */}
+        <AnimatePresence>
+          {isRevealed && result && (
+            <motion.div
+              initial={{ opacity: 0, scale: 1.1 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`absolute inset-[2px] rounded-[16px] flex flex-col items-center justify-center bg-gradient-to-b ${tierBg} backdrop-blur-sm z-[3]`}
+            >
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: [0, 1.3, 1] }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="text-4xl mb-1"
+              >
+                {TIER_EMOJI[result.tier]}
+              </motion.span>
+              <p className="text-white font-black text-xs text-center px-1 leading-tight">
+                {TIER_LABEL[result.tier]}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Flower count badge */}
+        {flowerCount > 0 && !isRevealed && (
+          <motion.div
+            key={flowerCount}
+            initial={{ scale: 1.3 }}
+            animate={{ scale: 1 }}
+            className="absolute bottom-[8px] right-[8px] z-[5]"
+          >
+            <div
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-white text-[9px] font-bold shadow-md"
+              style={{ background: "linear-gradient(135deg, #C4977A, #E8749A)" }}
+            >
+              🌸 <span>×{flowerCount}</span>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ME badge */}
+        {isMe && !isRevealed && (
+          <div className="absolute top-2 right-2 z-[6]">
+            <span
+              className="text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase shadow-md"
+              style={{ backgroundColor: theme.color }}
+            >
+              Bạn
+            </span>
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // ── MODE 2 & 3: Selfie or Empty — original behavior with theme corners ────
   return (
     <motion.div
       className={`champion-card ${hasUser ? "active" : ""} aspect-[3/4] ${canTapFlower ? "cursor-pointer" : ""}`}
@@ -485,8 +599,25 @@ function ChampionCard({
           </span>
         </>
       ) : (
-        /* Empty slot — flower identity */
+        /* Empty slot — flower identity with celestial accents */
         <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {/* Subtle celestial sparkle */}
+          <motion.div
+            className="absolute top-3 right-4 text-[8px] opacity-0"
+            animate={{ opacity: [0, 0.4, 0], scale: [0.8, 1.1, 0.8] }}
+            transition={{ repeat: Infinity, duration: 4, delay: slot.slotIndex * 0.3 }}
+          >
+            &#x2726;
+          </motion.div>
+          <motion.div
+            className="absolute bottom-4 left-3 text-[7px] opacity-0"
+            style={{ color: theme.color }}
+            animate={{ opacity: [0, 0.3, 0], scale: [0.8, 1.1, 0.8] }}
+            transition={{ repeat: Infinity, duration: 5, delay: 1 + slot.slotIndex * 0.2 }}
+          >
+            &#x2727;
+          </motion.div>
+
           <motion.div
             animate={{ scale: [1, 1.12, 1], opacity: [0.30, 0.65, 0.30] }}
             transition={{ repeat: Infinity, duration: 3, delay: slot.slotIndex * 0.18 }}

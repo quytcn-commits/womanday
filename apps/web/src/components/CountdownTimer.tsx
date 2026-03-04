@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 interface Props {
   seconds: number;
   label?: string;
+  maxSeconds?: number;
 }
 
-export default function CountdownTimer({ seconds, label = "Quay sau" }: Props) {
+export default function CountdownTimer({ seconds, label = "Quay sau", maxSeconds = 30 }: Props) {
   return (
     <div className="flex flex-col items-center gap-2">
       <p className="text-brand-deep/50 text-sm font-light uppercase tracking-[0.25em]">{label}</p>
@@ -27,7 +28,7 @@ export default function CountdownTimer({ seconds, label = "Quay sau" }: Props) {
         <motion.div
           className="h-full rounded-full"
           style={{ background: "linear-gradient(90deg, #E8607A, #D4A88C, #FCD5E0)" }}
-          animate={{ width: `${(seconds / 30) * 100}%` }}
+          animate={{ width: `${(seconds / maxSeconds) * 100}%` }}
           transition={{ duration: 0.5 }}
         />
       </div>

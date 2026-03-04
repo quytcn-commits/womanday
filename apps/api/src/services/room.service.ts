@@ -58,7 +58,7 @@ export async function getRoomWithParticipants(roomId: string) {
     where: { id: roomId },
     include: {
       participants: {
-        include: { user: { select: { name: true, dept: true, position: true, selfieUrl: true } } },
+        include: { user: { select: { name: true, dept: true, position: true, selfieUrl: true, cardImageUrl: true } } },
         orderBy: { slotIndex: "asc" },
       },
     },
@@ -75,10 +75,11 @@ export async function getRoomWithParticipants(roomId: string) {
         dept: p.user.dept,
         position: p.user.position,
         selfieUrl: p.user.selfieUrl,
+        cardImageUrl: p.user.cardImageUrl,
         state: p.state,
       };
     }
-    return { slotIndex: i + 1, userId: null, name: null, dept: null, position: null, selfieUrl: null, state: "EMPTY" };
+    return { slotIndex: i + 1, userId: null, name: null, dept: null, position: null, selfieUrl: null, cardImageUrl: null, state: "EMPTY" };
   });
 
   return {
@@ -254,7 +255,7 @@ export async function joinRoom(
   }
 
   // Emit participant joined event
-  io.to(`room:${roomId}`).emit("participant_joined", {
+  const joinedPayload = {
     event: "participant_joined",
     roomId,
     slotIndex,
@@ -263,23 +264,14 @@ export async function joinRoom(
       name: employee.name,
       dept: employee.dept,
       selfieUrl: employee.selfieUrl,
+      cardImageUrl: employee.cardImageUrl,
     },
     participantCount: newCount,
-  });
+  };
+  io.to(`room:${roomId}`).emit("participant_joined", joinedPayload);
 
   // Also emit to global listeners (wall page)
-  io.emit("participant_joined", {
-    event: "participant_joined",
-    roomId,
-    slotIndex,
-    participant: {
-      userId,
-      name: employee.name,
-      dept: employee.dept,
-      selfieUrl: employee.selfieUrl,
-    },
-    participantCount: newCount,
-  });
+  io.emit("participant_joined", joinedPayload);
 
   // Room full → auto lock (outside transaction, uses atomic updateMany)
   if (shouldLockRoom) {

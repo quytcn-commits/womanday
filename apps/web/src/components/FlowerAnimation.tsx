@@ -21,16 +21,16 @@ let flowerId = 0;
 
 interface Props {
   socket: Socket | null;
+  columns?: number;
 }
 
-export default function FlowerAnimation({ socket }: Props) {
+export default function FlowerAnimation({ socket, columns = 4 }: Props) {
   const [flowers, setFlowers] = useState<FloatingFlower[]>([]);
 
   const spawnFlower = useCallback((slotIndex: number) => {
-    // Map slotIndex (1-12) to approximate x position on grid
-    // Grid is 4 cols in compact mode, so slot position:
-    const col = ((slotIndex - 1) % 4);
-    const xPercent = 15 + col * 23 + (Math.random() - 0.5) * 10;
+    const col = ((slotIndex - 1) % columns);
+    const colWidth = 70 / columns;
+    const xPercent = 15 + col * colWidth + (Math.random() - 0.5) * 10;
 
     const flower: FloatingFlower = {
       id: `flower-${++flowerId}`,
@@ -48,7 +48,7 @@ export default function FlowerAnimation({ socket }: Props) {
     setTimeout(() => {
       setFlowers((prev) => prev.filter((f) => f.id !== flower.id));
     }, 2500);
-  }, []);
+  }, [columns]);
 
   useEffect(() => {
     if (!socket) return;

@@ -246,7 +246,12 @@ export default function ReadyPage() {
   const fetchRooms = useCallback(async () => {
     try {
       const res = await apiFetch<{ rooms: ActiveRoom[] }>("/api/v1/rooms/active", { auth: false });
-      setRooms(res.rooms.filter((r) => !["DONE", "SPINNING", "REVEAL"].includes(r.status)));
+      const filtered = res.rooms.filter((r) => !["DONE", "SPINNING", "REVEAL"].includes(r.status));
+      setRooms((prev) => {
+        const prevIds = prev.map((r) => r.id + r.status).join(",");
+        const nextIds = filtered.map((r) => r.id + r.status).join(",");
+        return prevIds === nextIds ? prev : filtered;
+      });
     } catch {}
   }, []);
 
@@ -476,6 +481,14 @@ export default function ReadyPage() {
               className="space-y-3"
             >
               <div className="gold-frame p-3 relative">
+                {/* Close button — return to envelope */}
+                <button
+                  onClick={() => setCardOpened(false)}
+                  className="absolute top-1 right-1 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/70 text-brand-deep/40 hover:text-brand-deep/70 hover:bg-white/90 transition-all text-xs"
+                  aria-label="Đóng thiệp"
+                >
+                  ✕
+                </button>
                 <GoldCorner position="tl" />
                 <GoldCorner position="tr" />
                 <GoldCorner position="bl" />

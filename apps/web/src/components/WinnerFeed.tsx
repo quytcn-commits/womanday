@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Socket } from "socket.io-client";
 
@@ -59,14 +59,14 @@ export default function WinnerFeed({ socket, initialWinners = [] }: Props) {
     <div className="glass p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest">
-          Nguoi Trung Thuong
+          Người Trúng Thưởng
         </p>
         {winners.length > 3 && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="text-brand-hot text-[10px] font-semibold hover:text-brand-hot/70 transition-colors"
           >
-            {expanded ? "Thu gon" : `Xem tat ca (${winners.length})`}
+            {expanded ? "Thu gọn" : `Xem tất cả (${winners.length})`}
           </button>
         )}
       </div>

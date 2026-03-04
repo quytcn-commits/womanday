@@ -28,14 +28,14 @@ export default function LiveStats({ totalParticipants, spunCount, prizePool }: P
   return (
     <div className="glass p-4">
       <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest mb-3">
-        Tien Do Quay Thuong
+        Tiến Độ Quay Thưởng
       </p>
 
       {/* Progress bar */}
       <div className="mb-3">
         <div className="flex justify-between items-baseline mb-1.5">
           <span className="text-brand-hot font-black text-lg">{spunCount}</span>
-          <span className="text-brand-deep/30 text-xs font-light">/ {totalParticipants} nguoi</span>
+          <span className="text-brand-deep/30 text-xs font-light">/ {totalParticipants} người</span>
         </div>
         <div className="w-full h-2.5 rounded-full bg-brand-deep/[0.06] overflow-hidden">
           <motion.div
@@ -76,7 +76,7 @@ export default function LiveStats({ totalParticipants, spunCount, prizePool }: P
               <div className="text-right">
                 {exhausted ? (
                   <span className="text-[10px] font-semibold text-brand-deep/30">
-                    Da co chu!
+                    Đã có chủ!
                   </span>
                 ) : (
                   <span className="text-xs font-bold" style={{ color }}>

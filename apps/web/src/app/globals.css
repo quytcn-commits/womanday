@@ -217,6 +217,15 @@ body {
   100% { transform: translateY(105vh) translateX(-20px) rotate(360deg); opacity: 0; }
 }
 
+/* ── Scrollbar hide utility ────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 .animate-fade-in { animation: fadeIn 0.6s ease-out; }
 .animate-float   { animation: floatGentle 4s ease-in-out infinite; }
 .animate-breathe { animation: breathe 4s ease-in-out infinite; }

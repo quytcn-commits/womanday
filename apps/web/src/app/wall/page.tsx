@@ -139,7 +139,7 @@ function WallPageContent() {
           status: "CREATED",
           participantCount: 0,
           participants: Array.from({ length: 12 }, (_, i) => ({
-            slotIndex: i + 1, userId: null, name: null, dept: null, selfieUrl: null, state: "EMPTY"
+            slotIndex: i + 1, userId: null, name: null, dept: null, selfieUrl: null, cardImageUrl: null, state: "EMPTY"
           })),
           qrUrl: data.qrUrl,
           autoStartAt: null,
@@ -253,7 +253,7 @@ function WallPageContent() {
       status: "CREATED",
       participantCount: 0,
       participants: Array.from({ length: 12 }, (_, i) => ({
-        slotIndex: i + 1, userId: null, name: null, dept: null, selfieUrl: null, state: "EMPTY",
+        slotIndex: i + 1, userId: null, name: null, dept: null, selfieUrl: null, cardImageUrl: null, state: "EMPTY",
       })),
       qrUrl: `${BASE}/join?room=${selectedRoomId}`,
       autoStartAt: null,
@@ -281,7 +281,7 @@ function WallPageContent() {
   return (
     <div className="h-screen w-screen overflow-hidden flex bg-gradient-to-br from-brand-pink via-brand-blush to-brand-cream relative select-none">
       <SpinAnimation isSpinning={isSpinning} />
-      <FlowerAnimation socket={socketInstance} />
+      <FlowerAnimation socket={socketInstance} columns={6} />
       <MegaphoneOverlay socket={socketInstance} />
 
       {/* Ambient glow blobs */}

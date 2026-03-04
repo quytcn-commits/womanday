@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Socket } from "socket.io-client";
 
@@ -173,7 +173,7 @@ function SmallMegaphoneToast({ data, index }: { data: ActiveItem; index: number 
       exit={{ x: "120%", opacity: 0 }}
       transition={{ type: "spring", stiffness: 160, damping: 22 }}
       className="absolute right-3"
-      style={{ top: `${72 + index * 76}px` }}
+      style={{ top: `max(env(safe-area-inset-top, 0px) + ${56 + index * 68}px, ${56 + index * 68}px)` }}
     >
       <div
         className="w-60 sm:w-68 py-2.5 px-3.5 rounded-xl overflow-hidden"

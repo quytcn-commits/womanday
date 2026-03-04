@@ -12,13 +12,9 @@ export async function resultRoutes(app: FastifyInstance) {
     });
     if (!emp) return reply.code(404).send({ error: "NOT_FOUND" });
 
-    const BASE = process.env.CORS_ORIGIN || "http://localhost:3000";
-    const API = `${BASE.replace("3000", "3001")}`;
-
-    const imageUrl = emp.resultImageUrl ? `${API}${emp.resultImageUrl}` : null;
-    const shareUrl = imageUrl
-      ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(imageUrl)}`
-      : null;
+    // Return relative path — frontend uses getApiUrl() to build full URL
+    const imageUrl = emp.resultImageUrl || null;
+    const shareUrl = null; // share URL built client-side
 
     const eventRound = await getCurrentEventRound();
     const spinLog = await prisma.spinLog.findUnique({

@@ -33,7 +33,7 @@ export default function WishNotification({ wish, onDismiss }: Props) {
           <span className="text-2xl mt-0.5">{wish.flower}</span>
           <div className="flex-1 min-w-0">
             <p className="text-brand-deep font-semibold text-sm">
-              {wish.from.name} gui loi chuc
+              {wish.from.name} gửi lời chúc
             </p>
             <p className="text-brand-deep/60 text-xs mt-0.5 font-light leading-relaxed truncate">
               &ldquo;{wish.message}&rdquo;

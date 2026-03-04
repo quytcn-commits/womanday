@@ -20,7 +20,7 @@ export default function WishModal({ isOpen, onClose }: Props) {
 
   async function handleSend() {
     if (!message.trim()) {
-      setError("Vui long nhap loi chuc");
+      setError("Vui lòng nhập lời chúc");
       return;
     }
     setSending(true);
@@ -38,7 +38,7 @@ export default function WishModal({ isOpen, onClose }: Props) {
         onClose();
       }, 2000);
     } catch (err: any) {
-      setError(err.data?.message || err.message || "Gui that bai, thu lai");
+      setError(err.data?.message || err.message || "Gửi thất bại, thử lại");
     } finally {
       setSending(false);
     }
@@ -78,20 +78,20 @@ export default function WishModal({ isOpen, onClose }: Props) {
                 >
                   {flower}
                 </motion.div>
-                <p className="text-brand-deep font-bold">Da gui loi chuc!</p>
+                <p className="text-brand-deep font-bold">Đã gửi lời chúc!</p>
                 <p className="text-brand-deep/40 text-xs mt-1 font-light">
-                  Loi chuc se duoc gui den dong nghiep ngau nhien
+                  Lời chúc sẽ được gửi đến đồng nghiệp ngẫu nhiên
                 </p>
               </div>
             ) : (
               <>
                 <h3 className="text-brand-deep font-bold text-base text-center mb-4">
-                  Gui Loi Chuc 8/3
+                  Gửi Lời Chúc 8/3
                 </h3>
 
                 {/* Flower picker */}
                 <p className="text-brand-deep/40 text-[10px] uppercase tracking-widest mb-2 font-light">
-                  Chon hoa
+                  Chọn hoa
                 </p>
                 <div className="grid grid-cols-6 gap-2 mb-4">
                   {FLOWERS.map((f) => (
@@ -112,12 +112,12 @@ export default function WishModal({ isOpen, onClose }: Props) {
 
                 {/* Message input */}
                 <p className="text-brand-deep/40 text-[10px] uppercase tracking-widest mb-2 font-light">
-                  Loi chuc (toi da 100 ky tu)
+                  Lời chúc (tối đa 100 ký tự)
                 </p>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value.slice(0, 100))}
-                  placeholder="Chuc chi em ngay 8/3 vui ve, hanh phuc!"
+                  placeholder="Chúc chị em ngày 8/3 vui vẻ, hạnh phúc!"
                   className="w-full px-3 py-2.5 rounded-xl text-sm bg-brand-deep/[0.03] border border-brand-deep/[0.08] text-brand-deep placeholder:text-brand-deep/25 focus:outline-none focus:border-brand-hot/30 resize-none font-light"
                   rows={3}
                 />
@@ -135,19 +135,19 @@ export default function WishModal({ isOpen, onClose }: Props) {
                     onClick={onClose}
                     className="flex-1 py-2.5 rounded-2xl text-sm font-semibold text-brand-deep/40 bg-brand-deep/[0.04] hover:bg-brand-deep/[0.08] transition-colors"
                   >
-                    Huy
+                    Huỷ
                   </button>
                   <button
                     onClick={handleSend}
                     disabled={sending || !message.trim()}
                     className="flex-1 py-2.5 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-brand-hot to-brand-rose hover:shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
                   >
-                    {sending ? "Dang gui..." : `Gui ${flower}`}
+                    {sending ? "Đang gửi..." : `Gửi ${flower}`}
                   </button>
                 </div>
 
                 <p className="text-brand-deep/25 text-[10px] text-center mt-3 font-light">
-                  Loi chuc se duoc gui ngau nhien den mot dong nghiep
+                  Lời chúc sẽ được gửi ngẫu nhiên đến một đồng nghiệp
                 </p>
               </>
             )}

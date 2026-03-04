@@ -41,13 +41,13 @@ export default function EventCountdown({ targetTime, onEventStarted }: Props) {
   return (
     <div className="glass p-5 text-center">
       <p className="text-brand-deep/50 text-xs font-light uppercase tracking-widest mb-3">
-        Su kien bat dau sau
+        Sự kiện bắt đầu sau
       </p>
       <div className="flex items-center justify-center gap-3">
         {[
-          { value: timeLeft.hours, label: "Gio" },
-          { value: timeLeft.minutes, label: "Phut" },
-          { value: timeLeft.seconds, label: "Giay" },
+          { value: timeLeft.hours, label: "Giờ" },
+          { value: timeLeft.minutes, label: "Phút" },
+          { value: timeLeft.seconds, label: "Giây" },
         ].map((item, i) => (
           <div key={i} className="flex flex-col items-center">
             <div
@@ -68,7 +68,7 @@ export default function EventCountdown({ targetTime, onEventStarted }: Props) {
         ))}
       </div>
       <p className="text-brand-deep/30 text-xs mt-3 font-light animate-pulse">
-        Hay san sang cho su kien dac biet!
+        Hãy sẵn sàng cho sự kiện đặc biệt!
       </p>
     </div>
   );

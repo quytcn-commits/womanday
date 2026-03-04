@@ -192,7 +192,7 @@ export function initSocketIO(httpServer: HttpServer) {
           orderBy: { createdAt: "desc" },
           include: {
             participants: {
-              include: { user: { select: { id: true, name: true, dept: true, selfieUrl: true } } },
+              include: { user: { select: { id: true, name: true, dept: true, selfieUrl: true, cardImageUrl: true } } },
               orderBy: { slotIndex: "asc" },
             },
           },
@@ -214,6 +214,7 @@ export function initSocketIO(httpServer: HttpServer) {
                 name: p.user.name,
                 dept: p.user.dept,
                 selfieUrl: p.user.selfieUrl,
+                cardImageUrl: p.user.cardImageUrl,
                 state: p.state,
               },
             });

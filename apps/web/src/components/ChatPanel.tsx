@@ -167,7 +167,7 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
   return (
     <div className={`flex flex-col ${compact ? "h-64" : "h-full"}`}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-2 p-2 min-h-0">
+      <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2 p-2 min-h-0">
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
             <motion.div
@@ -224,13 +224,13 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
                       </div>
                     )}
                   </div>
-                  {/* Quick reactions */}
-                  <div className="hidden group-hover:flex gap-1 flex-shrink-0">
+                  {/* Quick reactions — always visible on mobile, hover on desktop */}
+                  <div className="flex sm:hidden sm:group-hover:flex gap-1 flex-shrink-0">
                     {REACTIONS.map((r) => (
                       <button
                         key={r}
                         onClick={() => sendReaction(msg.id, r)}
-                        className="text-sm opacity-40 hover:opacity-90 transition-opacity duration-200"
+                        className="text-sm opacity-40 hover:opacity-90 active:opacity-100 active:scale-125 transition-all duration-200"
                       >
                         {r}
                       </button>
@@ -285,7 +285,7 @@ export default function ChatPanel({ socket, roomId, compact, myUserId }: Props) 
             )}
             {megaphoneMode && (
               <span className="text-brand-gold text-[10px] font-light ml-auto">
-                {megaphoneMode === "big" ? "Loa lon — hien full man hinh!" : "Loa nho — hien banner!"}
+                {megaphoneMode === "big" ? "Loa lớn — hiện full màn hình!" : "Loa nhỏ — hiện banner!"}
               </span>
             )}
           </div>

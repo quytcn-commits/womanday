@@ -42,6 +42,7 @@ export interface RoomParticipant {
   dept: string | null;
   position: string | null;
   selfieUrl: string | null;
+  cardImageUrl: string | null;
   state: ParticipantState | "EMPTY";
 }
 
@@ -125,6 +126,7 @@ export interface WS_ParticipantJoined {
     name: string;
     dept: string;
     selfieUrl: string | null;
+    cardImageUrl: string | null;
   };
   participantCount: number;
 }
