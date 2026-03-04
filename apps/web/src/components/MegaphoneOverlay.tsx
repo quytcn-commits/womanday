@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Socket } from "socket.io-client";
 
@@ -20,18 +20,18 @@ interface Props {
   socket: Socket | null;
 }
 
-const FIREWORK_EMOJIS = ["✨", "🌸", "💫", "🎀", "⭐", "🌟", "💖", "🎉", "🌷", "💐"];
+const FIREWORK_EMOJIS = ["✨", "🌸", "💫", "🎀", "⭐", "🌟", "💖", "🎉", "🌷", "💐", "🎊", "💝"];
 
 // ── Limits ────────────────────────────────────
 const MAX_SMALL_VISIBLE = 3;
 const MAX_BIG_VISIBLE = 1;
-const THROTTLE_MS = 500;         // Min gap between showing new items
-const SMALL_DURATION = 4000;
-const SMALL_DURATION_BUSY = 2500; // Shorter when queue is backing up
-const BIG_DURATION = 5000;
-const BIG_DURATION_BUSY = 3000;
-const PARTICLE_LIGHT = 12;       // Normal particle count
-const PARTICLE_HEAVY = 6;        // Reduced when under load
+const THROTTLE_MS = 500;
+const SMALL_DURATION = 5000;
+const SMALL_DURATION_BUSY = 3000;
+const BIG_DURATION = 6000;
+const BIG_DURATION_BUSY = 4000;
+const PARTICLE_NORMAL = 20;
+const PARTICLE_BUSY = 10;
 
 export default function MegaphoneOverlay({ socket }: Props) {
   const [activeItems, setActiveItems] = useState<ActiveItem[]>([]);
@@ -39,7 +39,6 @@ export default function MegaphoneOverlay({ socket }: Props) {
   const lastShowRef = useRef(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Listen for megaphone_announcement — buffer all incoming
   useEffect(() => {
     if (!socket) return;
     const handler = (data: MegaphoneAnnouncement) => {
@@ -49,16 +48,13 @@ export default function MegaphoneOverlay({ socket }: Props) {
     return () => { socket.off("megaphone_announcement", handler); };
   }, [socket]);
 
-  // Tick every 300ms: promote buffered items + cleanup expired
   useEffect(() => {
     tickRef.current = setInterval(() => {
       const now = Date.now();
 
       setActiveItems((prev) => {
-        // 1. Remove expired
         let next = prev.filter((i) => i.expiresAt > now);
 
-        // 2. Throttle: only add new if enough time passed
         if (bufferRef.current.length > 0 && now - lastShowRef.current >= THROTTLE_MS) {
           const item = bufferRef.current.shift()!;
           const busy = bufferRef.current.length > 3;
@@ -66,7 +62,6 @@ export default function MegaphoneOverlay({ socket }: Props) {
             ? (busy ? BIG_DURATION_BUSY : BIG_DURATION)
             : (busy ? SMALL_DURATION_BUSY : SMALL_DURATION);
 
-          // Enforce concurrent limits — drop oldest of same type
           if (item.megaphoneType === "small") {
             const smalls = next.filter((i) => i.megaphoneType === "small");
             if (smalls.length >= MAX_SMALL_VISIBLE) {
@@ -83,7 +78,6 @@ export default function MegaphoneOverlay({ socket }: Props) {
           lastShowRef.current = now;
         }
 
-        // 3. Cap total buffer to prevent memory buildup (keep newest 30)
         if (bufferRef.current.length > 30) {
           bufferRef.current = bufferRef.current.slice(-30);
         }
@@ -100,7 +94,7 @@ export default function MegaphoneOverlay({ socket }: Props) {
 
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 100 }}>
-      {/* Big megaphone overlay — very light bg */}
+      {/* Big megaphone — NO backdrop-blur, just very subtle tint */}
       <AnimatePresence>
         {bigs.length > 0 && (
           <motion.div
@@ -108,11 +102,10 @@ export default function MegaphoneOverlay({ socket }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.4 }}
             className="absolute inset-0"
             style={{
-              background: "rgba(255,245,247,0.3)",
-              backdropFilter: "blur(3px)",
+              background: "radial-gradient(ellipse at center, rgba(255,220,230,0.25) 0%, rgba(255,245,247,0.08) 60%, transparent 100%)",
             }}
           />
         )}
@@ -136,7 +129,7 @@ export default function MegaphoneOverlay({ socket }: Props) {
         ))}
       </AnimatePresence>
 
-      {/* Pending counter — shows when buffer is backing up */}
+      {/* Pending counter */}
       <AnimatePresence>
         {pendingCount > 0 && (
           <PendingBadge count={pendingCount} />
@@ -155,14 +148,14 @@ function PendingBadge({ count }: { count: number }) {
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
-      className="absolute top-4 right-4 px-3 py-1.5 rounded-full"
+      className="absolute top-3 right-3 px-3 py-1.5 rounded-full"
       style={{
-        background: "rgba(232,96,122,0.9)",
-        boxShadow: "0 2px 12px rgba(232,96,122,0.4)",
+        background: "linear-gradient(135deg, #E8607A, #D4708F)",
+        boxShadow: "0 2px 12px rgba(232,96,122,0.5), 0 0 20px rgba(232,96,122,0.2)",
       }}
     >
-      <span className="text-white text-xs font-bold">
-        📢 +{count} lời chúc
+      <span className="text-white text-xs font-bold tracking-wide">
+        +{count} lời chúc
       </span>
     </motion.div>
   );
@@ -175,33 +168,48 @@ function SmallMegaphoneToast({ data, index }: { data: ActiveItem; index: number 
 
   return (
     <motion.div
-      initial={{ x: "110%", opacity: 0 }}
+      initial={{ x: "120%", opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      exit={{ x: "110%", opacity: 0 }}
-      transition={{ type: "spring", stiffness: 140, damping: 20 }}
+      exit={{ x: "120%", opacity: 0 }}
+      transition={{ type: "spring", stiffness: 160, damping: 22 }}
       className="absolute right-3"
-      style={{ top: `${80 + index * 82}px` }}
+      style={{ top: `${72 + index * 76}px` }}
     >
       <div
-        className="w-64 sm:w-72 py-3 px-4 rounded-2xl border border-brand-hot/15"
+        className="w-60 sm:w-68 py-2.5 px-3.5 rounded-xl overflow-hidden"
         style={{
-          background: "rgba(255,255,255,0.88)",
-          backdropFilter: "blur(16px)",
-          boxShadow: "0 4px 24px rgba(232,96,122,0.12), 0 1px 3px rgba(0,0,0,0.04)",
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 4px 20px rgba(232,96,122,0.15), 0 1px 3px rgba(0,0,0,0.05)",
+          borderLeft: "3px solid #E8607A",
+          borderTop: "1px solid rgba(232,96,122,0.08)",
+          borderRight: "1px solid rgba(232,96,122,0.08)",
+          borderBottom: "1px solid rgba(232,96,122,0.08)",
         }}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-xl flex-shrink-0">📢</span>
+        <div className="flex items-start gap-2.5">
+          <span className="text-lg flex-shrink-0 mt-0.5">📢</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-brand-deep font-bold text-xs">{shortName}</span>
-              <span className="text-brand-rose/40 text-[10px]">{data.user.dept}</span>
+              <span className="text-brand-deep font-bold text-[11px]">{shortName}</span>
+              <span className="text-brand-rose/50 text-[9px] font-medium">{data.user.dept}</span>
             </div>
-            <p className="text-brand-deep/80 font-semibold text-sm leading-snug line-clamp-2 mt-0.5">
+            <p className="text-brand-deep/80 font-semibold text-[13px] leading-snug line-clamp-2 mt-0.5">
               {data.message}
             </p>
           </div>
         </div>
+        {/* Shimmer sweep */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          initial={{ x: "-100%" }}
+          animate={{ x: "200%" }}
+          transition={{ duration: 1.5, delay: 0.3, ease: "easeInOut" }}
+          style={{
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+            width: "40%",
+          }}
+        />
       </div>
     </motion.div>
   );
@@ -211,44 +219,78 @@ function SmallMegaphoneToast({ data, index }: { data: ActiveItem; index: number 
 
 function BigMegaphoneFirework({ data, lightMode }: { data: ActiveItem; lightMode: boolean }) {
   const shortName = data.user.name.split(" ").slice(-2).join(" ");
-  const particleCount = lightMode ? PARTICLE_HEAVY : PARTICLE_LIGHT;
+  const particleCount = lightMode ? PARTICLE_BUSY : PARTICLE_NORMAL;
 
-  // Pre-compute particles (stable across re-renders)
-  const particles = useMemo(() => {
+  // Wave 1: main burst
+  const wave1 = useMemo(() => {
     return Array.from({ length: particleCount }, (_, i) => {
-      const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-      const distance = 120 + Math.random() * 160;
+      const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const distance = 180 + Math.random() * 220;
       return {
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
         emoji: FIREWORK_EMOJIS[i % FIREWORK_EMOJIS.length],
-        duration: 1.2 + Math.random() * 0.6,
-        delay: i * 0.05,
+        size: 20 + Math.random() * 12,
+        duration: 1.8 + Math.random() * 0.8,
+        delay: i * 0.04,
+        rotation: Math.random() * 360,
       };
     });
   }, [particleCount]);
+
+  // Wave 2: delayed secondary burst (fewer, larger, farther)
+  const wave2 = useMemo(() => {
+    const count = Math.max(Math.floor(particleCount * 0.5), 4);
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.8;
+      const distance = 250 + Math.random() * 300;
+      return {
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance,
+        emoji: FIREWORK_EMOJIS[(i + 3) % FIREWORK_EMOJIS.length],
+        size: 24 + Math.random() * 14,
+        duration: 2.0 + Math.random() * 1.0,
+        delay: 0.6 + i * 0.06,
+        rotation: Math.random() * 360,
+      };
+    });
+  }, [particleCount]);
+
+  // Sparkle ring around the card
+  const sparkles = useMemo(() => {
+    return Array.from({ length: 8 }, (_, i) => {
+      const angle = (i / 8) * Math.PI * 2;
+      const dist = 140 + Math.random() * 40;
+      return {
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        delay: 0.3 + i * 0.08,
+      };
+    });
+  }, []);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: 0.3 }}
       className="absolute inset-0 flex items-center justify-center pointer-events-none"
     >
-      {/* Firework particles */}
+      {/* Firework Wave 1 — main burst */}
       <div className="absolute inset-0 overflow-hidden">
-        {particles.map((p, i) => (
+        {wave1.map((p, i) => (
           <motion.span
-            key={i}
-            className="absolute text-base sm:text-lg"
-            style={{ left: "50%", top: "50%" }}
-            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+            key={`w1-${i}`}
+            className="absolute"
+            style={{ left: "50%", top: "50%", fontSize: `${p.size}px` }}
+            initial={{ x: 0, y: 0, scale: 0, opacity: 1, rotate: 0 }}
             animate={{
               x: p.x,
               y: p.y,
-              scale: [0, 1.3, 0.5],
-              opacity: [1, 0.9, 0],
+              scale: [0, 1.4, 0.6, 0],
+              opacity: [0, 1, 0.8, 0],
+              rotate: p.rotation,
             }}
             transition={{
               duration: p.duration,
@@ -261,64 +303,161 @@ function BigMegaphoneFirework({ data, lightMode }: { data: ActiveItem; lightMode
         ))}
       </div>
 
-      {/* Message card */}
-      <motion.div
-        initial={{ scale: 0.4, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.6, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 130, damping: 16 }}
-        className="relative z-10 text-center max-w-[80%] sm:max-w-[60%]"
-      >
-        <div
-          className="px-6 py-5 sm:px-8 sm:py-6 rounded-3xl"
+      {/* Firework Wave 2 — delayed secondary burst */}
+      <div className="absolute inset-0 overflow-hidden">
+        {wave2.map((p, i) => (
+          <motion.span
+            key={`w2-${i}`}
+            className="absolute"
+            style={{ left: "50%", top: "50%", fontSize: `${p.size}px` }}
+            initial={{ x: 0, y: 0, scale: 0, opacity: 1, rotate: 0 }}
+            animate={{
+              x: p.x,
+              y: p.y,
+              scale: [0, 1.6, 0.4, 0],
+              opacity: [0, 1, 0.7, 0],
+              rotate: p.rotation,
+            }}
+            transition={{
+              duration: p.duration,
+              delay: p.delay,
+              ease: "easeOut",
+            }}
+          >
+            {p.emoji}
+          </motion.span>
+        ))}
+      </div>
+
+      {/* Sparkle ring — subtle glowing dots around card */}
+      {sparkles.map((s, i) => (
+        <motion.div
+          key={`spark-${i}`}
+          className="absolute rounded-full"
           style={{
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(20px)",
-            boxShadow: "0 8px 48px rgba(232,96,122,0.2), 0 2px 8px rgba(0,0,0,0.04)",
-            border: "1px solid rgba(212,175,55,0.25)",
+            left: "50%",
+            top: "50%",
+            width: 6,
+            height: 6,
+            background: "radial-gradient(circle, #FFD700 0%, #E8607A 80%, transparent 100%)",
+            boxShadow: "0 0 8px 3px rgba(255,215,0,0.5)",
+          }}
+          initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+          animate={{
+            x: s.x,
+            y: s.y,
+            scale: [0, 2, 1.2, 0],
+            opacity: [0, 1, 0.6, 0],
+          }}
+          transition={{
+            duration: 2,
+            delay: s.delay,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+
+      {/* Message card — glass with animated border glow */}
+      <motion.div
+        initial={{ scale: 0.3, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.5, opacity: 0, y: -20 }}
+        transition={{ type: "spring", stiffness: 120, damping: 14, delay: 0.05 }}
+        className="relative z-10 text-center max-w-[85%] sm:max-w-[55%]"
+      >
+        {/* Outer glow */}
+        <div
+          className="absolute -inset-1 rounded-[28px] opacity-60"
+          style={{
+            background: "linear-gradient(135deg, #FFD700 0%, #E8607A 50%, #D4AF37 100%)",
+            filter: "blur(8px)",
+          }}
+        />
+
+        {/* Card */}
+        <div
+          className="relative px-7 py-5 sm:px-10 sm:py-7 rounded-3xl"
+          style={{
+            background: "rgba(255,255,255,0.95)",
+            boxShadow: "0 8px 40px rgba(232,96,122,0.25), 0 0 60px rgba(255,215,0,0.12), 0 2px 6px rgba(0,0,0,0.03)",
+            border: "1.5px solid rgba(212,175,55,0.35)",
           }}
         >
-          {/* Megaphone icon */}
+          {/* Shimmer sweep across card */}
           <motion.div
-            className="text-4xl sm:text-5xl mb-2"
-            animate={{ scale: [1, 1.2, 1], rotate: [0, -6, 6, 0] }}
-            transition={{ duration: 1, repeat: Infinity, repeatDelay: 1 }}
+            className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none"
+          >
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: "300%" }}
+              transition={{ duration: 2, delay: 0.3, ease: "easeInOut", repeat: 1, repeatDelay: 1 }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "30%",
+                background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.15), transparent)",
+              }}
+            />
+          </motion.div>
+
+          {/* Megaphone icon with bounce */}
+          <motion.div
+            className="text-4xl sm:text-5xl mb-3"
+            animate={{
+              scale: [1, 1.25, 1],
+              rotate: [0, -8, 8, -4, 0],
+            }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 1.5 }}
           >
             📣
           </motion.div>
 
           {/* User info */}
-          <p className="text-brand-deep/50 text-xs font-light mb-1 tracking-wider uppercase">
+          <motion.p
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="text-xs font-medium mb-2 tracking-widest uppercase"
+            style={{ color: "#D4708F" }}
+          >
             {shortName} · {data.user.dept}
-          </p>
+          </motion.p>
 
-          {/* Gold divider */}
-          <div
-            className="w-28 h-0.5 mx-auto mb-2"
+          {/* Gold divider — thicker, wider */}
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+            className="w-32 h-[2px] mx-auto mb-3"
             style={{
-              background: "linear-gradient(90deg, transparent 0%, #D4AF37 30%, #E8607A 70%, transparent 100%)",
+              background: "linear-gradient(90deg, transparent, #D4AF37 25%, #E8607A 75%, transparent)",
             }}
           />
 
-          {/* Message */}
+          {/* Message — large, gold, punchy */}
           <motion.p
-            initial={{ y: 10, opacity: 0 }}
+            initial={{ y: 12, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.15, duration: 0.3 }}
-            className="text-xl sm:text-2xl font-black leading-tight"
+            transition={{ delay: 0.25, duration: 0.35 }}
+            className="text-xl sm:text-2xl md:text-[26px] font-black leading-snug"
             style={{
-              color: "#C07828",
-              textShadow: "0 0 16px rgba(192,120,40,0.15)",
+              background: "linear-gradient(135deg, #B8860B 0%, #C07828 40%, #D4AF37 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 1px 2px rgba(192,120,40,0.2))",
             }}
           >
             {data.message}
           </motion.p>
 
           {/* Bottom divider */}
-          <div
-            className="w-28 h-0.5 mx-auto mt-2"
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" }}
+            className="w-32 h-[2px] mx-auto mt-3"
             style={{
-              background: "linear-gradient(90deg, transparent 0%, #E8607A 30%, #D4AF37 70%, transparent 100%)",
+              background: "linear-gradient(90deg, transparent, #E8607A 25%, #D4AF37 75%, transparent)",
             }}
           />
         </div>
