@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Socket } from "socket.io-client";
 
@@ -21,52 +21,86 @@ interface Props {
 }
 
 const FIREWORK_EMOJIS = ["✨", "🌸", "💫", "🎀", "⭐", "🌟", "💖", "🎉", "🌷", "💐"];
-const PARTICLE_COUNT = 24;
-const WAVE2_COUNT = 14;
+
+// ── Limits ────────────────────────────────────
+const MAX_SMALL_VISIBLE = 3;
+const MAX_BIG_VISIBLE = 1;
+const THROTTLE_MS = 500;         // Min gap between showing new items
+const SMALL_DURATION = 4000;
+const SMALL_DURATION_BUSY = 2500; // Shorter when queue is backing up
+const BIG_DURATION = 5000;
+const BIG_DURATION_BUSY = 3000;
+const PARTICLE_LIGHT = 12;       // Normal particle count
+const PARTICLE_HEAVY = 6;        // Reduced when under load
 
 export default function MegaphoneOverlay({ socket }: Props) {
   const [activeItems, setActiveItems] = useState<ActiveItem[]>([]);
-  const cleanupRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bufferRef = useRef<MegaphoneAnnouncement[]>([]);
+  const lastShowRef = useRef(0);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Listen for megaphone_announcement events
+  // Listen for megaphone_announcement — buffer all incoming
   useEffect(() => {
     if (!socket) return;
     const handler = (data: MegaphoneAnnouncement) => {
-      const duration = data.megaphoneType === "big" ? 6000 : 4000;
-      setActiveItems((prev) => {
-        let next = [...prev];
-        if (data.megaphoneType === "small") {
-          const smalls = next.filter((i) => i.megaphoneType === "small");
-          if (smalls.length >= 4) next = next.filter((i) => i.id !== smalls[0].id);
-        } else {
-          const bigs = next.filter((i) => i.megaphoneType === "big");
-          if (bigs.length >= 2) next = next.filter((i) => i.id !== bigs[0].id);
-        }
-        return [...next, { ...data, expiresAt: Date.now() + duration }];
-      });
+      bufferRef.current.push(data);
     };
     socket.on("megaphone_announcement", handler);
     return () => { socket.off("megaphone_announcement", handler); };
   }, [socket]);
 
-  // Cleanup expired items every 500ms
+  // Tick every 300ms: promote buffered items + cleanup expired
   useEffect(() => {
-    cleanupRef.current = setInterval(() => {
+    tickRef.current = setInterval(() => {
+      const now = Date.now();
+
       setActiveItems((prev) => {
-        const now = Date.now();
-        const filtered = prev.filter((i) => i.expiresAt > now);
-        return filtered.length === prev.length ? prev : filtered;
+        // 1. Remove expired
+        let next = prev.filter((i) => i.expiresAt > now);
+
+        // 2. Throttle: only add new if enough time passed
+        if (bufferRef.current.length > 0 && now - lastShowRef.current >= THROTTLE_MS) {
+          const item = bufferRef.current.shift()!;
+          const busy = bufferRef.current.length > 3;
+          const duration = item.megaphoneType === "big"
+            ? (busy ? BIG_DURATION_BUSY : BIG_DURATION)
+            : (busy ? SMALL_DURATION_BUSY : SMALL_DURATION);
+
+          // Enforce concurrent limits — drop oldest of same type
+          if (item.megaphoneType === "small") {
+            const smalls = next.filter((i) => i.megaphoneType === "small");
+            if (smalls.length >= MAX_SMALL_VISIBLE) {
+              next = next.filter((i) => i.id !== smalls[0].id);
+            }
+          } else {
+            const bigs = next.filter((i) => i.megaphoneType === "big");
+            if (bigs.length >= MAX_BIG_VISIBLE) {
+              next = next.filter((i) => i.id !== bigs[0].id);
+            }
+          }
+
+          next.push({ ...item, expiresAt: now + duration });
+          lastShowRef.current = now;
+        }
+
+        // 3. Cap total buffer to prevent memory buildup (keep newest 30)
+        if (bufferRef.current.length > 30) {
+          bufferRef.current = bufferRef.current.slice(-30);
+        }
+
+        return next.length === prev.length && !bufferRef.current.length ? prev : next;
       });
-    }, 500);
-    return () => { if (cleanupRef.current) clearInterval(cleanupRef.current); };
+    }, 300);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, []);
 
   const smalls = activeItems.filter((i) => i.megaphoneType === "small");
   const bigs = activeItems.filter((i) => i.megaphoneType === "big");
+  const pendingCount = bufferRef.current.length;
 
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 100 }}>
-      {/* Big megaphone overlay — light transparent bg */}
+      {/* Big megaphone overlay — very light bg */}
       <AnimatePresence>
         {bigs.length > 0 && (
           <motion.div
@@ -74,23 +108,23 @@ export default function MegaphoneOverlay({ socket }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.3 }}
             className="absolute inset-0"
             style={{
-              background: "rgba(255,245,247,0.35)",
-              backdropFilter: "blur(4px)",
+              background: "rgba(255,245,247,0.3)",
+              backdropFilter: "blur(3px)",
             }}
           />
         )}
       </AnimatePresence>
 
-      {/* Big megaphone messages + fireworks */}
-      <AnimatePresence>
-        {bigs.map((item, idx) => (
+      {/* Big megaphone message + fireworks */}
+      <AnimatePresence mode="wait">
+        {bigs.map((item) => (
           <BigMegaphoneFirework
             key={item.id}
             data={item}
-            stackOffset={bigs.length > 1 ? (idx === 0 ? -70 : 70) : 0}
+            lightMode={pendingCount > 3}
           />
         ))}
       </AnimatePresence>
@@ -101,7 +135,36 @@ export default function MegaphoneOverlay({ socket }: Props) {
           <SmallMegaphoneToast key={item.id} data={item} index={idx} />
         ))}
       </AnimatePresence>
+
+      {/* Pending counter — shows when buffer is backing up */}
+      <AnimatePresence>
+        {pendingCount > 0 && (
+          <PendingBadge count={pendingCount} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ── Pending Badge ────────────────────────────────────── */
+
+function PendingBadge({ count }: { count: number }) {
+  return (
+    <motion.div
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      className="absolute top-4 right-4 px-3 py-1.5 rounded-full"
+      style={{
+        background: "rgba(232,96,122,0.9)",
+        boxShadow: "0 2px 12px rgba(232,96,122,0.4)",
+      }}
+    >
+      <span className="text-white text-xs font-bold">
+        📢 +{count} lời chúc
+      </span>
+    </motion.div>
   );
 }
 
@@ -117,24 +180,18 @@ function SmallMegaphoneToast({ data, index }: { data: ActiveItem; index: number 
       exit={{ x: "110%", opacity: 0 }}
       transition={{ type: "spring", stiffness: 140, damping: 20 }}
       className="absolute right-3"
-      style={{ top: `${80 + index * 90}px` }}
+      style={{ top: `${80 + index * 82}px` }}
     >
       <div
-        className="w-72 py-3 px-4 rounded-2xl border border-brand-hot/15"
+        className="w-64 sm:w-72 py-3 px-4 rounded-2xl border border-brand-hot/15"
         style={{
           background: "rgba(255,255,255,0.88)",
           backdropFilter: "blur(16px)",
-          boxShadow: "0 4px 24px rgba(232,96,122,0.15), 0 1px 3px rgba(0,0,0,0.05)",
+          boxShadow: "0 4px 24px rgba(232,96,122,0.12), 0 1px 3px rgba(0,0,0,0.04)",
         }}
       >
         <div className="flex items-center gap-3">
-          <motion.span
-            className="text-2xl flex-shrink-0"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 0.5, repeat: 2 }}
-          >
-            📢
-          </motion.span>
+          <span className="text-xl flex-shrink-0">📢</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-brand-deep font-bold text-xs">{shortName}</span>
@@ -152,56 +209,46 @@ function SmallMegaphoneToast({ data, index }: { data: ActiveItem; index: number 
 
 /* ── Big Megaphone with Firework ───────────────────────── */
 
-function BigMegaphoneFirework({ data, stackOffset }: { data: ActiveItem; stackOffset: number }) {
+function BigMegaphoneFirework({ data, lightMode }: { data: ActiveItem; lightMode: boolean }) {
   const shortName = data.user.name.split(" ").slice(-2).join(" ");
-  // Pre-compute particles to keep them stable across re-renders
-  const particlesRef = useRef(generateParticles());
-  const wave2Ref = useRef(generateWave2());
+  const particleCount = lightMode ? PARTICLE_HEAVY : PARTICLE_LIGHT;
+
+  // Pre-compute particles (stable across re-renders)
+  const particles = useMemo(() => {
+    return Array.from({ length: particleCount }, (_, i) => {
+      const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const distance = 120 + Math.random() * 160;
+      return {
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance,
+        emoji: FIREWORK_EMOJIS[i % FIREWORK_EMOJIS.length],
+        duration: 1.2 + Math.random() * 0.6,
+        delay: i * 0.05,
+      };
+    });
+  }, [particleCount]);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.25 }}
       className="absolute inset-0 flex items-center justify-center pointer-events-none"
     >
-      {/* Firework particles — wave 1 (burst from center) */}
+      {/* Firework particles */}
       <div className="absolute inset-0 overflow-hidden">
-        {particlesRef.current.map((p, i) => (
+        {particles.map((p, i) => (
           <motion.span
-            key={`w1-${i}`}
-            className="absolute text-lg sm:text-xl"
-            style={{ left: "50%", top: `calc(50% + ${stackOffset}px)` }}
+            key={i}
+            className="absolute text-base sm:text-lg"
+            style={{ left: "50%", top: "50%" }}
             initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
             animate={{
               x: p.x,
               y: p.y,
-              scale: [0, 1.4, 0.6],
-              opacity: [1, 1, 0],
-            }}
-            transition={{
-              duration: p.duration,
-              delay: p.delay,
-              ease: "easeOut",
-            }}
-          >
-            {p.emoji}
-          </motion.span>
-        ))}
-
-        {/* Wave 2 — delayed burst, goes further */}
-        {wave2Ref.current.map((p, i) => (
-          <motion.span
-            key={`w2-${i}`}
-            className="absolute text-sm sm:text-base"
-            style={{ left: "50%", top: `calc(50% + ${stackOffset}px)` }}
-            initial={{ x: 0, y: 0, scale: 0, opacity: 0.8 }}
-            animate={{
-              x: p.x,
-              y: p.y,
-              scale: [0, 1.2, 0.4],
-              opacity: [0.8, 0.8, 0],
+              scale: [0, 1.3, 0.5],
+              opacity: [1, 0.9, 0],
             }}
             transition={{
               duration: p.duration,
@@ -216,52 +263,52 @@ function BigMegaphoneFirework({ data, stackOffset }: { data: ActiveItem; stackOf
 
       {/* Message card */}
       <motion.div
-        initial={{ scale: 0.3, opacity: 0, y: stackOffset }}
-        animate={{ scale: 1, opacity: 1, y: stackOffset }}
-        exit={{ scale: 0.5, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 120, damping: 14 }}
-        className="relative z-10 text-center max-w-[80%] sm:max-w-[65%]"
+        initial={{ scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.6, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 130, damping: 16 }}
+        className="relative z-10 text-center max-w-[80%] sm:max-w-[60%]"
       >
         <div
-          className="px-8 py-6 rounded-3xl"
+          className="px-6 py-5 sm:px-8 sm:py-6 rounded-3xl"
           style={{
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(20px)",
-            boxShadow: "0 8px 60px rgba(232,96,122,0.25), 0 2px 8px rgba(0,0,0,0.05)",
-            border: "1px solid rgba(212,175,55,0.3)",
+            boxShadow: "0 8px 48px rgba(232,96,122,0.2), 0 2px 8px rgba(0,0,0,0.04)",
+            border: "1px solid rgba(212,175,55,0.25)",
           }}
         >
           {/* Megaphone icon */}
           <motion.div
-            className="text-5xl sm:text-6xl mb-3"
-            animate={{ scale: [1, 1.25, 1], rotate: [0, -8, 8, 0] }}
-            transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 0.8 }}
+            className="text-4xl sm:text-5xl mb-2"
+            animate={{ scale: [1, 1.2, 1], rotate: [0, -6, 6, 0] }}
+            transition={{ duration: 1, repeat: Infinity, repeatDelay: 1 }}
           >
             📣
           </motion.div>
 
           {/* User info */}
-          <p className="text-brand-deep/50 text-xs font-light mb-1.5 tracking-wider uppercase">
+          <p className="text-brand-deep/50 text-xs font-light mb-1 tracking-wider uppercase">
             {shortName} · {data.user.dept}
           </p>
 
           {/* Gold divider */}
           <div
-            className="w-32 h-0.5 mx-auto mb-3"
+            className="w-28 h-0.5 mx-auto mb-2"
             style={{
               background: "linear-gradient(90deg, transparent 0%, #D4AF37 30%, #E8607A 70%, transparent 100%)",
             }}
           />
 
-          {/* Message — prominent text */}
+          {/* Message */}
           <motion.p
-            initial={{ y: 15, opacity: 0 }}
+            initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.4 }}
-            className="text-2xl sm:text-3xl font-black leading-tight"
+            transition={{ delay: 0.15, duration: 0.3 }}
+            className="text-xl sm:text-2xl font-black leading-tight"
             style={{
               color: "#C07828",
-              textShadow: "0 0 20px rgba(192,120,40,0.2)",
+              textShadow: "0 0 16px rgba(192,120,40,0.15)",
             }}
           >
             {data.message}
@@ -269,7 +316,7 @@ function BigMegaphoneFirework({ data, stackOffset }: { data: ActiveItem; stackOf
 
           {/* Bottom divider */}
           <div
-            className="w-32 h-0.5 mx-auto mt-3"
+            className="w-28 h-0.5 mx-auto mt-2"
             style={{
               background: "linear-gradient(90deg, transparent 0%, #E8607A 30%, #D4AF37 70%, transparent 100%)",
             }}
@@ -278,34 +325,4 @@ function BigMegaphoneFirework({ data, stackOffset }: { data: ActiveItem; stackOf
       </motion.div>
     </motion.div>
   );
-}
-
-/* ── Particle generators ───────────────────────────────── */
-
-function generateParticles() {
-  return Array.from({ length: PARTICLE_COUNT }, (_, i) => {
-    const angle = (i / PARTICLE_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-    const distance = 140 + Math.random() * 180;
-    return {
-      x: Math.cos(angle) * distance,
-      y: Math.sin(angle) * distance,
-      emoji: FIREWORK_EMOJIS[i % FIREWORK_EMOJIS.length],
-      duration: 1.4 + Math.random() * 0.8,
-      delay: i * 0.04,
-    };
-  });
-}
-
-function generateWave2() {
-  return Array.from({ length: WAVE2_COUNT }, (_, i) => {
-    const angle = (i / WAVE2_COUNT) * Math.PI * 2 + Math.random() * 0.5;
-    const distance = 250 + Math.random() * 150;
-    return {
-      x: Math.cos(angle) * distance,
-      y: Math.sin(angle) * distance,
-      emoji: FIREWORK_EMOJIS[(i + 3) % FIREWORK_EMOJIS.length],
-      duration: 1.8 + Math.random() * 0.7,
-      delay: 0.8 + i * 0.06,
-    };
-  });
 }
